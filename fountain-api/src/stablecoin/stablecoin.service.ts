@@ -4,6 +4,7 @@ import { XrplService } from '../xrpl/xrpl.service';
 import { BinanceService } from '../binance/binance.service';
 import { CustomLogger } from '../common/logger.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { EncryptionService } from '../common/encryption.service';
 import { Wallet } from 'xrpl';
 import axios from 'axios';
 import { ConfigService } from '../config/config.service';
@@ -17,11 +18,14 @@ export class StablecoinService {
     private binanceService: BinanceService,
     private logger: CustomLogger,
     private supabaseService: SupabaseService,
+    private encryptionService: EncryptionService,
     private readonly config: ConfigService,
   ) {}
 
   async onModuleInit() {
     await this.xrplService.connect();
+    // Register this service with XrplService for ledger listener callbacks
+    this.xrplService.setStablecoinService(this);
   }
 
   async onModuleDestroy() {
@@ -119,27 +123,28 @@ export class StablecoinService {
   }
 
   private async createStablecoinRlusd(operation: any, operationId: string) {
-    // Step 3: Generate temporary deposit wallet
+    // Step 2: Generate temporary deposit wallet
     const tempWallet = this.xrplService.generateWallet();
     this.logger.logStep(2, 'Generating temporary deposit wallet (on-chain)', {
       walletType: 'temporary',
       address: tempWallet.address,
     });
 
-    // All information will be persisted via Supabase
+    // Encrypt and store the seed for later cleanup
+    const encryptedSeed = this.encryptionService.encrypt(tempWallet.seed || '');
+    const currentLedger = await this.xrplService.getCurrentLedgerIndex();
 
-    // Step 4: Calculate required RLUSD amount
+    // Step 3: Calculate required RLUSD amount
     const rlusdAmount = await this.binanceService.calculateRlusdForBrl(operation.amount);
-    this.logger.logStep(3, 'Calculating on-chain require amount', {
-      'Fetch Dollar price': { rate: this.config.usdBrlRate },
-      'Calc': `${operation.amount} / ${this.config.usdBrlRate} == ${rlusdAmount.toFixed(6)}`,
+    this.logger.logStep(3, 'Calculating on-chain required amount', {
+      'Dollar price': { rate: this.config.usdBrlRate },
+      'Calculation': `${operation.amount} / ${this.config.usdBrlRate} == ${rlusdAmount.toFixed(6)}`,
     });
 
-    // Step 5: Update operation with RLUSD requirement
+    // Step 4: Update operation with wallet data and encrypted seed
     operation.rlusdRequired = rlusdAmount;
     operation.tempWalletAddress = tempWallet.address;
 
-    // Persist temporary wallet and RLUSD requirement in the database
     await this.supabaseService.updateStablecoin(operation.stablecoinId, {
       metadata: {
         companyId: operation.companyId,
@@ -152,13 +157,34 @@ export class StablecoinService {
       status: 'pending',
       depositWalletAddress: tempWallet.address,
       amountRlusd: rlusdAmount,
+      tempWalletSeedEncrypted: encryptedSeed,
+      tempWalletCreationLedger: currentLedger,
     });
 
-    this.logger.logStep(4, 'Starting subscribe for this operation', {
-      'LISTEN DEPOSIT ON': tempWallet.address,
+    // Step 5: Activate temp wallet with 1.3 XRP
+    this.logger.logStep(4, 'Activating temporary wallet');
+    try {
+      const activationHash = await this.xrplService.activateTempWallet(tempWallet.address);
+
+      await this.supabaseService.updateOperation(operationId, {
+        tempWalletActivationTxHash: activationHash,
+        tempWalletActivatedAt: new Date().toISOString(),
+      });
+
+      this.logger.logBlockchainTransaction(activationHash, {
+        type: 'TEMP_WALLET_ACTIVATION',
+        amount: '1.3 XRP',
+      });
+    } catch (error) {
+      this.logger.logError('Failed to activate temp wallet', error);
+      throw error;
+    }
+
+    // Step 6: Subscribe to wallet for deposits (async, don't await)
+    this.logger.logStep(5, 'Starting subscribe for this operation', {
+      'LISTEN_DEPOSIT_ON': tempWallet.address,
     });
 
-    // Subscribe to wallet for deposits (async, don't await)
     this.subscribeToDeposit(operation, operationId, tempWallet.address);
 
     this.logger.logOperationSuccess('MINT', {
@@ -221,27 +247,32 @@ export class StablecoinService {
               ? Number(tx.transaction.Amount) / 1000000 // Convert drops to XRP
               : Number(tx.transaction.Amount.value);
 
-            this.logger.logInfo(`Real deposit received: ${amount} on ${walletAddress}`);
-            await this.confirmDeposit(operation, operationId, amount);
+            const txHash = tx.transaction.hash || 'UNKNOWN';
+
+            this.logger.logInfo(`Real deposit received: ${amount} XRP on ${walletAddress}`, {
+              txHash,
+            });
+
+            // Pass tx hash for duplicate detection and history tracking
+            await this.confirmDeposit(operation, operationId, amount, txHash);
           }
         });
 
-        // Fallback: polling trust line balance if event is not delivered
+        // Fallback: polling account balance if event is not delivered
         let polled = false;
-        const issuerAddress = this.xrplService.getIssuerAddress();
         const pollInterval = setInterval(async () => {
           if (polled) return; // avoids multiple confirmations
           try {
-            const lines = await this.xrplService.getAccountLines(walletAddress);
-            const line = (lines || []).find((l: any) => l.currency === operation.currencyCode && l.issuer === issuerAddress);
-            if (line) {
-              const balance = Number(line.balance || '0');
-              if (balance >= Number(operation.rlusdRequired)) {
-                polled = true;
-                clearInterval(pollInterval);
-                this.logger.logInfo(`Polling detected deposit: ${balance} ${operation.currencyCode} on ${walletAddress}`);
-                await this.confirmDeposit(operation, operationId, balance);
-              }
+            const balance = await this.xrplService.getBalance(walletAddress);
+            const deposited = Number(balance) - 1.3; // Subtract activation amount
+
+            if (deposited > 0) {
+              polled = true;
+              clearInterval(pollInterval);
+              this.logger.logInfo(`Polling detected deposit: ${deposited} XRP on ${walletAddress}`);
+
+              // Use POLLING as tx hash for polling-detected deposits
+              await this.confirmDeposit(operation, operationId, deposited, 'POLLING');
             }
           } catch (err) {
             this.logger.logInfo(`Polling error for ${walletAddress}: ${err?.message || err}`);
@@ -252,7 +283,9 @@ export class StablecoinService {
         setTimeout(async () => {
           try {
             this.logger.logInfo(`Simulated deposit on ${walletAddress} (subscriber disabled)`);
-            await this.confirmDeposit(operation, operationId, operation.rlusdRequired);
+
+            // Use SIMULATED as tx hash for simulated deposits
+            await this.confirmDeposit(operation, operationId, operation.rlusdRequired, 'SIMULATED');
           } catch (error) {
             console.error('Deposit subscription error:', error);
           }
@@ -263,21 +296,96 @@ export class StablecoinService {
     }
   }
 
-  async confirmDeposit(operation: any, operationId: string, amountDeposited: number) {
-    this.logger.logStep(1, `Catch new deposit on ${operation.tempWalletAddress}`, {
-      'Expected': operation.rlusdRequired.toFixed(6),
-      'Deposited': amountDeposited.toFixed(6),
-    });
+  // Process incoming deposit and accumulate with previous deposits
+  async confirmDeposit(
+    operation: any,
+    operationId: string,
+    amountDeposited: number,
+    txHash: string = 'UNKNOWN'
+  ) {
+    try {
+      // Step 1: Check for duplicate deposit (already processed)
+      const current = await this.supabaseService.getOperation(operationId);
+      if (!current) {
+        this.logger.logWarning(`Operation ${operationId} not found`);
+        return;
+      }
 
-    // Update operation status to deposit confirmed
-    operation.status = 'deposit_confirmed';
-    operation.amountDeposited = amountDeposited;
-    // txHash will be filled after mint
+      const depositHistory = (current.deposit_history || []) as any[];
+      const isDuplicate = depositHistory.some((d: any) => d.txHash === txHash);
 
-    this.logger.logStateUpdate('OPERATION', operationId, { status: 'REQUIRE_DEPOSIT' }, { status: 'DEPOSIT_CONFIRMED' });
+      if (isDuplicate) {
+        this.logger.logWarning('Duplicate deposit ignored', {
+          txHash,
+          operationId,
+        });
+        return;
+      }
 
-    // Step 3: Mint on XRPL
-    this.logger.logStep(3, 'Mint ' + operation.currencyCode + ' on-chain');
+      // Step 2: Accumulate deposit in database
+      const totalDeposited = await this.supabaseService.accumulateDeposit(
+        operationId,
+        amountDeposited,
+        txHash
+      );
+
+      const required = operation.rlusdRequired;
+      const progress = ((totalDeposited / required) * 100).toFixed(2);
+
+      this.logger.logStep(1, 'Deposit received and accumulated', {
+        'This deposit': amountDeposited.toFixed(6),
+        'Total accumulated': totalDeposited.toFixed(6),
+        'Required': required.toFixed(6),
+        'Progress': `${progress}%`,
+      });
+
+      // Step 3: Check if deposit requirement met
+      if (totalDeposited >= required) {
+        // Requirement fully met - proceed with mint
+        this.logger.logValidation('Deposit requirement met', true, {
+          accumulated: totalDeposited,
+          required,
+        });
+
+        // Update status and continue with mint
+        operation.status = 'deposit_confirmed';
+        operation.amountDeposited = totalDeposited;
+
+        // Unsubscribe from further deposits
+        await this.xrplService.unsubscribeFromWallet(operation.tempWalletAddress);
+
+        // Execute the mint
+        await this.executeMint(operation, operationId);
+      } else {
+        // Partial deposit - keep waiting for more
+        const stillNeeded = required - totalDeposited;
+
+        this.logger.logInfo('Partial deposit - waiting for more funds', {
+          'Total so far': totalDeposited.toFixed(6),
+          'Still needed': stillNeeded.toFixed(6),
+          'Required': required.toFixed(6),
+        });
+
+        // Update status to show partial progress
+        await this.supabaseService.updateOperation(operationId, {
+          status: 'partial_deposit_received',
+          amount_deposited: totalDeposited,
+        });
+
+        // Continue listening for more deposits (subscriber still active)
+        this.logger.logStep(2, 'Waiting for additional deposits', {
+          'Deposits so far': depositHistory.length + 1,
+        });
+      }
+    } catch (error) {
+      this.logger.logOperationError('DEPOSIT_PROCESSING', error);
+      // Don't fail the operation - just log and continue listening
+    }
+  }
+
+  // Execute mint after full deposit amount received
+  private async executeMint(operation: any, operationId: string) {
+    this.logger.logStep(3, `Minting ${operation.currencyCode} on-chain`);
 
     const issuerWallet = this.xrplService.getIssuerWallet();
     try {
@@ -292,12 +400,14 @@ export class StablecoinService {
         type: 'issued_currency_payment',
         currency: operation.currencyCode,
         amount: operation.amount,
+        totalDeposited: operation.amountDeposited,
       });
 
-      // Step 4: Deposit to company wallet (mock, already included in mint)
-      this.logger.logStep(4, `Deposit ${operation.currencyCode} to company wallet`, {
+      // Step 4: Deposit to company wallet (already included in mint)
+      this.logger.logStep(4, `Depositing ${operation.currencyCode} to company wallet`, {
         'TxHash': mintResult.txHash,
-        'to': operation.companyWallet,
+        'To': operation.companyWallet,
+        'Amount': operation.amount,
       });
 
       // Step 5: Send webhook notification
@@ -305,21 +415,78 @@ export class StablecoinService {
         operationId,
         stablecoinId: operation.stablecoinId,
         status: 'completed',
+        totalDeposited: operation.amountDeposited,
       });
 
-      // Update operation to completed and register tx
+      // Update operation to completed with mint tx hash
       operation.status = 'completed';
-      await this.supabaseService.updateOperation(operationId, { status: 'completed', txHash: mintResult.txHash });
+      await this.supabaseService.updateOperation(operationId, {
+        status: 'completed',
+        txHash: mintResult.txHash,
+      });
 
       this.logger.logOperationSuccess('MINT', {
         operationId,
         status: 'completed',
         txHash: mintResult.txHash,
+        totalDeposited: operation.amountDeposited,
       });
+
+      // Step 6: Schedule temp wallet cleanup (async, after 16 ledgers)
+      this.logger.logStep(6, 'Scheduling temporary wallet cleanup');
+      // Cleanup will be triggered by WebSocket ledger listener when 16 ledgers have passed
     } catch (error) {
       this.logger.logOperationError('MINT', error);
       operation.status = 'failed';
       await this.supabaseService.updateOperation(operationId, { status: 'failed' });
+    }
+  }
+
+  // Cleanup temporary wallet: delete and merge balance back to issuer
+  async cleanupTempWallet(operationId: string) {
+    try {
+      const operation = await this.supabaseService.getOperation(operationId);
+      if (!operation) {
+        this.logger.logWarning(`Operation ${operationId} not found for cleanup`);
+        return;
+      }
+
+      if (!operation.temp_wallet_seed_encrypted || !operation.deposit_wallet_address) {
+        this.logger.logWarning(
+          `Operation ${operationId} missing seed or wallet address`,
+        );
+        return;
+      }
+
+      // Decrypt the seed
+      const decryptedSeed = this.encryptionService.decrypt(operation.temp_wallet_seed_encrypted);
+
+      // Execute AccountDelete transaction
+      const deleteHash = await this.xrplService.deleteTempWalletAndMerge(
+        operation.deposit_wallet_address,
+        decryptedSeed,
+        this.xrplService.getIssuerAddress(),
+      );
+
+      // Update operation with deletion details
+      await this.supabaseService.updateOperation(operationId, {
+        tempWalletDeletedAt: new Date().toISOString(),
+        tempWalletDeleteTxHash: deleteHash,
+      });
+
+      this.logger.logBlockchainTransaction(deleteHash, {
+        type: 'TEMP_WALLET_DELETED',
+        mergedTo: this.xrplService.getIssuerAddress(),
+        tempWallet: operation.deposit_wallet_address,
+      });
+
+      this.logger.logStep(7, 'Temporary wallet cleanup completed', {
+        tempWallet: operation.deposit_wallet_address,
+        deleteHash,
+      });
+    } catch (error) {
+      this.logger.logError('Temp wallet cleanup failed - will retry later', error);
+      // Do not throw: cleanup failure should not block operation
     }
   }
 

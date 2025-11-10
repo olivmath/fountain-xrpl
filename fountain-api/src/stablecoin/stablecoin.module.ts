@@ -5,12 +5,13 @@ import { XrplService } from '../xrpl/xrpl.service';
 import { BinanceService } from '../binance/binance.service';
 import { AuthService } from '../auth/auth.service';
 import { CustomLogger } from '../common/logger.service';
+import { EncryptionService } from '../common/encryption.service';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { JwtMiddleware } from '../auth/jwt.middleware';
 
 @Module({
   imports: [SupabaseModule],
-  providers: [StablecoinService, XrplService, BinanceService, AuthService, CustomLogger, JwtMiddleware],
+  providers: [StablecoinService, XrplService, BinanceService, AuthService, CustomLogger, EncryptionService, JwtMiddleware],
   controllers: [StablecoinController],
 })
 export class StablecoinModule implements NestModule {
