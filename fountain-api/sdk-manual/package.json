@@ -1,0 +1,34 @@
+{
+  "name": "fountain-api-sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for Fountain stablecoin API",
+  "main": "dist/fountain-sdk.js",
+  "types": "dist/fountain-sdk.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node example.ts",
+    "example": "npm run build && node dist/example.js"
+  },
+  "keywords": [
+    "fountain",
+    "stablecoin",
+    "xrpl",
+    "api",
+    "sdk"
+  ],
+  "author": "Fountain",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/fountain-api-sdk"
+  },
+  "homepage": "https://github.com/your-org/fountain-api-sdk#readme"
+}

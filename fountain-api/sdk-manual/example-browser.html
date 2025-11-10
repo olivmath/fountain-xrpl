@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fountain SDK - Browser Example</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        padding: 40px;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: #555;
+        font-weight: 500;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 5px rgba(102, 126, 234, 0.1);
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background 0.3s;
+      }
+
+      button:hover {
+        background: #5568d3;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .output {
+        background: #f5f5f5;
+        border-radius: 5px;
+        padding: 15px;
+        margin-top: 30px;
+        max-height: 400px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .output.success {
+        background: #f0f9ff;
+        border-left: 4px solid #10b981;
+      }
+
+      .output.error {
+        background: #fef2f2;
+        border-left: 4px solid #ef4444;
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border: 2px solid #667eea;
+        border-top: 2px solid transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin-right: 8px;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .status {
+        text-align: center;
+        margin-top: 20px;
+        color: #666;
+        font-size: 14px;
+      }
+
+      .status.authenticated {
+        color: #10b981;
+      }
+
+      .status.not-authenticated {
+        color: #ef4444;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🪙 Fountain SDK Demo</h1>
+
+      <!-- Login Section -->
+      <div id="loginSection">
+        <h2 style="font-size: 18px; margin-bottom: 20px;">Step 1: Login</h2>
+        <div class="form-group">
+          <label for="companyId">Company ID</label>
+          <select id="companyId">
+            <option value="">Select a company</option>
+            <option value="company-1">Park America</option>
+            <option value="company-2">Tech Startup Inc</option>
+          </select>
+        </div>
+        <button onclick="login()">Login</button>
+      </div>
+
+      <!-- Create Stablecoin Section -->
+      <div id="createSection" style="display: none; margin-top: 30px;">
+        <h2 style="font-size: 18px; margin-bottom: 20px;">Step 2: Create Stablecoin</h2>
+        <div class="form-group">
+          <label for="currencyCode">Currency Code</label>
+          <input type="text" id="currencyCode" placeholder="e.g., PABRL" value="PABRL" />
+        </div>
+        <div class="form-group">
+          <label for="amount">Amount (BRL)</label>
+          <input type="number" id="amount" placeholder="e.g., 13000" value="13000" />
+        </div>
+        <div class="form-group">
+          <label for="depositType">Deposit Type</label>
+          <select id="depositType">
+            <option value="RLUSD">RLUSD (On-Chain)</option>
+            <option value="PIX">PIX (Off-Chain)</option>
+          </select>
+        </div>
+        <button onclick="createStablecoin()">Create Stablecoin</button>
+      </div>
+
+      <!-- Burn Section -->
+      <div id="burnSection" style="display: none; margin-top: 30px;">
+        <h2 style="font-size: 18px; margin-bottom: 20px;">Step 3: Burn Stablecoin</h2>
+        <div class="form-group">
+          <label for="burnAmount">Amount to Burn (BRL)</label>
+          <input type="number" id="burnAmount" placeholder="e.g., 5000" value="5000" />
+        </div>
+        <div class="form-group">
+          <label for="returnAsset">Return Asset</label>
+          <select id="returnAsset">
+            <option value="RLUSD">RLUSD</option>
+            <option value="PIX">PIX</option>
+          </select>
+        </div>
+        <button onclick="burnStablecoin()">Burn Stablecoin</button>
+      </div>
+
+      <!-- Status -->
+      <div class="status not-authenticated" id="status">
+        Not authenticated
+      </div>
+
+      <!-- Output -->
+      <div class="output" id="output"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+      const API_URL = 'http://localhost:3000';
+      let jwtToken = null;
+      let stablecoinId = null;
+      const output = document.getElementById('output');
+      const status = document.getElementById('status');
+
+      function log(message, isError = false) {
+        const timestamp = new Date().toLocaleTimeString();
+        const line = `[${timestamp}] ${message}\n`;
+        output.textContent += line;
+        output.scrollTop = output.scrollHeight;
+
+        if (isError) {
+          output.classList.add('error');
+          output.classList.remove('success');
+        } else {
+          output.classList.add('success');
+          output.classList.remove('error');
+        }
+      }
+
+      async function login() {
+        const companyId = document.getElementById('companyId').value;
+        if (!companyId) {
+          alert('Please select a company');
+          return;
+        }
+
+        try {
+          log('📝 Logging in...');
+          const response = await axios.post(`${API_URL}/api/v1/auth`, {
+            companyId,
+          });
+
+          jwtToken = response.data.jwt;
+          log('✅ Login successful: ' + response.data.company.name);
+          log('🔐 JWT Token: ' + jwtToken.substring(0, 20) + '...');
+
+          // Show next sections
+          document.getElementById('loginSection').style.display = 'none';
+          document.getElementById('createSection').style.display = 'block';
+
+          // Update status
+          status.textContent = '✓ Authenticated as ' + response.data.company.name;
+          status.classList.add('authenticated');
+          status.classList.remove('not-authenticated');
+        } catch (error) {
+          log('❌ Login failed: ' + error.message, true);
+        }
+      }
+
+      async function createStablecoin() {
+        const currencyCode = document.getElementById('currencyCode').value;
+        const amount = parseFloat(document.getElementById('amount').value);
+        const depositType = document.getElementById('depositType').value;
+
+        if (!currencyCode || !amount) {
+          alert('Please fill in all fields');
+          return;
+        }
+
+        try {
+          log('🪙 Creating stablecoin...');
+          const response = await axios.post(
+            `${API_URL}/api/v1/stablecoin`,
+            {
+              companyId: document.getElementById('companyId').value,
+              clientId: 'client-' + Date.now(),
+              companyWallet: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr',
+              clientName: 'Demo Client',
+              currencyCode,
+              amount,
+              depositType,
+              webhookUrl: 'http://localhost:3001/webhook',
+            },
+            {
+              headers: { Authorization: `Bearer ${jwtToken}` },
+            },
+          );
+
+          stablecoinId = response.data.operationId;
+          log('✅ Stablecoin created!');
+          log('   Operation ID: ' + response.data.operationId);
+          log('   Status: ' + response.data.status);
+          log('   Amount ' + depositType + ': ' + response.data.amountRLUSD);
+          if (response.data.wallet) {
+            log('   Deposit wallet: ' + response.data.wallet);
+          }
+
+          // Show burn section
+          document.getElementById('burnSection').style.display = 'block';
+        } catch (error) {
+          log('❌ Create failed: ' + error.message, true);
+        }
+      }
+
+      async function burnStablecoin() {
+        const burnAmount = parseFloat(document.getElementById('burnAmount').value);
+        const returnAsset = document.getElementById('returnAsset').value;
+
+        if (!burnAmount) {
+          alert('Please enter amount to burn');
+          return;
+        }
+
+        try {
+          log('🔥 Burning stablecoin...');
+          const response = await axios.post(
+            `${API_URL}/api/v1/stablecoin/burn`,
+            {
+              stablecoinId,
+              currencyCode: document.getElementById('currencyCode').value,
+              amountBrl: burnAmount,
+              returnAsset,
+              webhookUrl: 'http://localhost:3001/webhook',
+            },
+            {
+              headers: { Authorization: `Bearer ${jwtToken}` },
+            },
+          );
+
+          log('✅ Burn completed!');
+          log('   Operation ID: ' + response.data.operationId);
+          log('   Status: ' + response.data.status);
+          log('   Amount burned (BRL): ' + response.data.amountBrlBurned);
+          log('   Amount returned (' + returnAsset + '): ' + response.data.amountRlusdReturned);
+        } catch (error) {
+          log('❌ Burn failed: ' + error.message, true);
+        }
+      }
+
+      // Clear output on page load
+      window.addEventListener('load', () => {
+        output.textContent =
+          'Welcome to Fountain SDK Demo!\n' + 'Use the form above to test the API.\n';
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "packageName": "fountain-api-sdk",
+  "packageVersion": "1.0.0",
+  "packageTitle": "Fountain API SDK",
+  "packageDescription": "SDK for Fountain stablecoin API",
+  "gitUserId": "your-org",
+  "gitRepoId": "fountain-api-sdk",
+  "apiDocumentationUrl": "http://localhost:3000/api/docs",
+  "license": "MIT",
+  "licenseUrl": "https://opensource.org/licenses/MIT",
+  "npmRepository": "https://registry.npmjs.org",
+  "projectName": "fountain-api",
+  "projectUrl": "https://github.com/your-org/fountain-api"
+}
