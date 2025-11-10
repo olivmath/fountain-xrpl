@@ -6,17 +6,16 @@ import axios, { AxiosInstance } from 'axios';
  */
 
 export interface LoginRequest {
-  companyId: string;
+  email: string;
 }
 
 export interface LoginResponse {
   jwt: string;
   expires: string;
-  company: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  email: string;
+  companyId: string;
+  companyName: string;
+  isAdmin: boolean;
 }
 
 export interface CreateStablecoinRequest {
@@ -64,6 +63,49 @@ export interface StablecoinDetails {
   createdAt: string;
 }
 
+export interface OperationDetails {
+  id: string;
+  stablecoinId: string;
+  type: 'MINT' | 'BURN';
+  status: string;
+  amountRlusd?: number;
+  amountBrl?: number;
+  tempWalletAddress?: string;
+  amountDeposited?: number;
+  depositCount?: number;
+  depositHistory?: Array<{
+    amount: number;
+    txHash: string;
+    timestamp: string;
+  }>;
+  createdAt: string;
+}
+
+export interface TempWalletStatus {
+  operationId: string;
+  tempWalletAddress: string;
+  currentBalanceXrp: string;
+  depositProgressPercent: string;
+  amountRequiredRlusd: number;
+  amountDepositedRlusd: number;
+  depositCount: number;
+  depositHistory: Array<{
+    amount: number;
+    txHash: string;
+    timestamp: string;
+  }>;
+  status: string;
+  error?: string;
+}
+
+export interface AdminStatistics {
+  totalCompanies: number;
+  totalStablecoins: number;
+  totalOperations: number;
+  completedOperations: number;
+  pendingOperations: number;
+}
+
 export class FountainSDK {
   private client: AxiosInstance;
   private jwtToken: string | null = null;
@@ -86,12 +128,12 @@ export class FountainSDK {
   }
 
   /**
-   * Login with company ID and get JWT token
+   * Login with email and get JWT token
    */
-  async login(companyId: string): Promise<LoginResponse> {
+  async login(email: string): Promise<LoginResponse> {
     try {
       const response = await this.client.post<LoginResponse>('/api/v1/auth', {
-        companyId,
+        email,
       });
 
       this.jwtToken = response.data.jwt;
@@ -204,6 +246,179 @@ export class FountainSDK {
    */
   isAuthenticated(): boolean {
     return this.jwtToken !== null;
+  }
+
+  // ===== Operations Endpoints (Client-facing) =====
+
+  /**
+   * Get all operations for the authenticated company
+   */
+  async getOperations(): Promise<OperationDetails[]> {
+    try {
+      const response = await this.client.get<OperationDetails[]>('/api/v1/operations');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(`Get operations failed: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Get operation details by operation ID
+   */
+  async getOperation(operationId: string): Promise<OperationDetails> {
+    try {
+      const response = await this.client.get<OperationDetails>(
+        `/api/v1/operations/${operationId}`,
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(`Get operation failed: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Get temporary wallet status for an operation
+   */
+  async getTempWalletStatus(operationId: string): Promise<TempWalletStatus> {
+    try {
+      const response = await this.client.get<TempWalletStatus>(
+        `/api/v1/operations/${operationId}/temp-wallet`,
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get temp wallet status failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  // ===== Admin Endpoints (Admin-only) =====
+
+  /**
+   * Get global system statistics (admin only)
+   */
+  async getAdminStatistics(): Promise<AdminStatistics> {
+    try {
+      const response = await this.client.get<AdminStatistics>('/api/v1/admin/statistics');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get statistics failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get all companies (admin only)
+   */
+  async getAdminCompanies(): Promise<any[]> {
+    try {
+      const response = await this.client.get<any[]>('/api/v1/admin/companies');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get companies failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get all stablecoins (admin only)
+   */
+  async getAdminStablecoins(): Promise<any[]> {
+    try {
+      const response = await this.client.get<any[]>('/api/v1/admin/stablecoins');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get stablecoins failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get stablecoin details by currency code (admin only)
+   */
+  async getAdminStablecoinByCode(currencyCode: string): Promise<any> {
+    try {
+      const response = await this.client.get<any>(
+        `/api/v1/admin/stablecoins/${currencyCode}`,
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get stablecoin details failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get temporary wallets with monitoring data (admin only)
+   */
+  async getAdminTempWallets(status?: string): Promise<any[]> {
+    try {
+      const response = await this.client.get<any[]>('/api/v1/admin/temp-wallets', {
+        params: status ? { status } : {},
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get temp wallets failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get all operations across the system (admin only)
+   */
+  async getAdminOperations(filters?: {
+    status?: string;
+    type?: 'MINT' | 'BURN';
+    limit?: number;
+    offset?: number;
+  }): Promise<OperationDetails[]> {
+    try {
+      const response = await this.client.get<OperationDetails[]>('/api/v1/admin/operations', {
+        params: filters || {},
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get operations failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get stablecoins for a specific company (admin only)
+   */
+  async getAdminCompanyStablecoins(companyId: string): Promise<any[]> {
+    try {
+      const response = await this.client.get<any[]>(
+        `/api/v1/admin/companies/${companyId}/stablecoins`,
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get company stablecoins failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get operations for a specific company (admin only)
+   */
+  async getAdminCompanyOperations(companyId: string): Promise<OperationDetails[]> {
+    try {
+      const response = await this.client.get<OperationDetails[]>(
+        `/api/v1/admin/companies/${companyId}/operations`,
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        `Get company operations failed: ${error.response?.data?.message || error.message}`,
+      );
+    }
   }
 }
 
