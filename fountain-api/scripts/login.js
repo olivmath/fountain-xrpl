@@ -4,7 +4,7 @@
 
 const axios = require('axios');
 
-const EMAIL = process.env.EMAIL || 'admin@sonica.com';
+const EMAIL = process.env.EMAIL || 'admin@fountain.com';
 const API_URL = process.env.API_URL || 'http://localhost:3000';
 
 async function main() {

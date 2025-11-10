@@ -66,7 +66,7 @@ export class ConfigService {
   get xrplIssuerAddress(): string {
     return (
       this.configService.get<string>("XRPL_ISSUER_ADDRESS") ||
-      'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr'
+      'rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV'
     );
   }
 

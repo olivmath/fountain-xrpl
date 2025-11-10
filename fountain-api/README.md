@@ -253,6 +253,54 @@ Example:
    └─ {...}
 ```
 
+## RLUSD Token Details (XRPL Testnet)
+
+- Network: XRPL Testnet
+- Token: `RLUSD`
+- Issuer Account Address: `rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV`
+- Testnet Servers:
+  - WebSocket: `wss://s.altnet.rippletest.net:51233`
+  - JSON-RPC: `https://s.altnet.rippletest.net:51234/`
+
+Note: You must have an active XRPL account (≥1 XRP) and enable a trustline to the RLUSD issuer to receive RLUSD. The holder sets a TrustSet with `LimitAmount` for currency `RLUSD` and the issuer above.
+
+### Environment
+
+```
+XRPL_NETWORK=testnet
+XRPL_ISSUER_ADDRESS=rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV
+XRPL_ISSUER_SEED=your-issuer-seed
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-or-service-role-key
+JWT_SECRET=your-secret-key
+PORT=3000
+```
+
+### Trustline Setup (Helper Script)
+
+Use the provided script to establish a trustline from your holder wallet to the RLUSD issuer on XRPL Testnet:
+
+```bash
+# Set trustline (holder signs)
+SOURCE_SEED=snYourHolderSeed LIMIT_RLUSD=10000 \
+  NETWORK_URL=wss://s.altnet.rippletest.net:51233 \
+  RLUSD_ISSUER=rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV \
+  node scripts/trustline.js
+```
+
+### Simulate RLUSD Deposit
+
+After creating a stablecoin operation, deposit RLUSD to the temporary wallet:
+
+```bash
+SOURCE_SEED=snYourHolderSeed STABLECOIN_ID=<uuid> AMOUNT_RLUSD=10 \
+  NETWORK_URL=wss://s.altnet.rippletest.net:51233 \
+  RLUSD_ISSUER=rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV \
+  node scripts/simulate-deposit.js
+```
+
+The script checks for the trustline before sending an Issued Currency `Payment`.
+
 ## Hackathon Simplifications
 
 - JWT hardcoded companies (no real signup)
