@@ -19,6 +19,8 @@ export class XrplService {
     this.subscriberEnabled = this.config.enableXrplSubscriber;
   }
 
+  private stablecoinService: any; // Set by dependency injection
+
   async connect() {
     const rpcUrl =
       this.network === 'testnet'
@@ -28,6 +30,51 @@ export class XrplService {
     this.client = new xrpl.Client(rpcUrl);
     await this.client.connect();
     console.log(`✅ XRPL connected to ${this.network} (Subscriber: ${this.subscriberEnabled ? 'ON' : 'OFF'})`);
+
+    // Start ledger listener for temp wallet cleanup (16-ledger counting)
+    if (this.subscriberEnabled) {
+      this.setupLedgerListener();
+    }
+  }
+
+  // Setup WebSocket listener for ledger close events (for temp wallet cleanup)
+  private setupLedgerListener() {
+    this.client.on('ledgerClosed', (ledger: any) => {
+      // Trigger cleanup check for any pending temp wallets
+      if (this.stablecoinService) {
+        this.checkAndCleanupPendingWallets();
+      }
+    });
+
+    console.log('👂 Ledger listener started for temp wallet cleanup');
+  }
+
+  // Check pending temp wallets and cleanup if they've reached 16 ledgers old
+  private async checkAndCleanupPendingWallets() {
+    if (!this.stablecoinService) return;
+
+    try {
+      const pendingOps = await this.stablecoinService.supabaseService.getPendingTempWalletCleanups();
+      const currentLedger = await this.getCurrentLedgerIndex();
+
+      for (const op of pendingOps) {
+        const age = currentLedger - op.temp_wallet_creation_ledger;
+
+        if (age >= 16) {
+          // Trigger cleanup async (don't block)
+          this.stablecoinService.cleanupTempWallet(op.id).catch((error: any) => {
+            console.error(`Failed to cleanup wallet for operation ${op.id}:`, error.message);
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Error checking pending temp wallets:', error.message);
+    }
+  }
+
+  // Set reference to StablecoinService for ledger listener callback
+  setStablecoinService(service: any) {
+    this.stablecoinService = service;
   }
 
   async disconnect() {
@@ -255,5 +302,73 @@ export class XrplService {
   private async getSequence(address: string): Promise<number> {
     const accountInfo = await this.getAccountInfo(address);
     return accountInfo.Sequence;
+  }
+
+  // Activate temporary wallet with funding
+  async activateTempWallet(tempWalletAddress: string): Promise<string> {
+    try {
+      const issuerWallet = this.getIssuerWallet();
+      const amountDrops = '1300000'; // 1.3 XRP in drops
+      const currentLedger = await this.getCurrentLedgerIndex();
+
+      const paymentTx: xrpl.Payment = {
+        Account: issuerWallet.address,
+        Destination: tempWalletAddress,
+        Amount: amountDrops,
+        Fee: '12',
+        Sequence: await this.getSequence(issuerWallet.address),
+        LastLedgerSequence: currentLedger + 20, // Valid for next 20 ledgers
+        TransactionType: 'Payment',
+      };
+
+      const signed = issuerWallet.sign(paymentTx as any);
+      const result = await this.client.submitAndWait(signed.tx_blob as any);
+
+      return result.result.hash;
+    } catch (error) {
+      throw new Error(`Failed to activate temp wallet: ${error.message}`);
+    }
+  }
+
+  // Delete temporary wallet and merge balance to destination
+  async deleteTempWalletAndMerge(
+    tempWalletAddress: string,
+    tempWalletSeed: string,
+    destinationAddress: string
+  ): Promise<string> {
+    try {
+      const tempWallet = Wallet.fromSeed(tempWalletSeed);
+      const currentLedger = await this.getCurrentLedgerIndex();
+
+      // AccountDelete transaction
+      const accountDeleteTx: xrpl.AccountDelete = {
+        Account: tempWalletAddress,
+        Destination: destinationAddress,
+        Fee: '200000', // 0.2 XRP in drops (deleted, not transferred)
+        Sequence: await this.getSequence(tempWalletAddress),
+        LastLedgerSequence: currentLedger + 20, // Valid for next 20 ledgers
+        TransactionType: 'AccountDelete',
+      };
+
+      const signed = tempWallet.sign(accountDeleteTx as any);
+      const result = await this.client.submitAndWait(signed.tx_blob as any);
+
+      return result.result.hash;
+    } catch (error) {
+      throw new Error(`Failed to delete temp wallet: ${error.message}`);
+    }
+  }
+
+  // Get current ledger index
+  async getCurrentLedgerIndex(): Promise<number> {
+    try {
+      const ledgerInfo = await this.client.request({
+        command: 'ledger',
+        ledger_index: 'validated',
+      });
+      return ledgerInfo.result.ledger_index;
+    } catch (error) {
+      throw new Error(`Failed to get current ledger index: ${error.message}`);
+    }
   }
 }
