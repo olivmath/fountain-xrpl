@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as xrpl from 'xrpl';
 import { Wallet } from 'xrpl';
+import { ConfigService } from '../config/config.service';
 
 @Injectable()
 export class XrplService {
@@ -11,11 +12,11 @@ export class XrplService {
   private subscribers: Map<string, (tx: any) => void> = new Map();
   private subscriberEnabled: boolean;
 
-  constructor() {
-    this.issuerAddress = process.env.XRPL_ISSUER_ADDRESS || 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr';
-    this.issuerSeed = process.env.XRPL_ISSUER_SEED || 'sEd75YpKSqbW5sRTGktUddFWPPX7vT9';
-    this.network = process.env.XRPL_NETWORK || 'testnet';
-    this.subscriberEnabled = process.env.ENABLE_XRPL_SUBSCRIBER !== 'false';
+  constructor(private readonly config: ConfigService) {
+    this.issuerAddress = this.config.xrplIssuerAddress;
+    this.issuerSeed = this.config.xrplIssuerSeed;
+    this.network = this.config.xrplNetwork;
+    this.subscriberEnabled = this.config.enableXrplSubscriber;
   }
 
   async connect() {

@@ -1,19 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { ConfigService } from '../config/config.service';
 
 @Injectable()
 export class SupabaseService {
   private supabase: SupabaseClient | null;
   private tokens: Map<string, { token: string; expiresAt: string }> = new Map();
 
-  constructor() {
-    const url = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anonKey = process.env.SUPABASE_ANON_KEY;
+  constructor(private readonly config: ConfigService) {
+    const url = this.config.supabaseUrl;
+    const keyToUse = this.config.supabaseKey;
 
-    const keyToUse = serviceKey || anonKey;
-
-    if (url && keyToUse && url !== 'https://your-project.supabase.co') {
+    if (url && keyToUse) {
       this.supabase = createClient(url, keyToUse);
       console.log('✅ Supabase connected');
     } else {

@@ -6,6 +6,7 @@ import { CustomLogger } from '../common/logger.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Wallet } from 'xrpl';
 import axios from 'axios';
+import { ConfigService } from '../config/config.service';
 
 @Injectable()
 export class StablecoinService {
@@ -19,6 +20,7 @@ export class StablecoinService {
     private binanceService: BinanceService,
     private logger: CustomLogger,
     private supabaseService: SupabaseService,
+    private readonly config: ConfigService,
   ) {}
 
   async onModuleInit() {
@@ -129,8 +131,8 @@ export class StablecoinService {
     // Step 4: Calculate required RLUSD amount
     const rlusdAmount = await this.binanceService.calculateRlusdForBrl(operation.amount);
     this.logger.logStep(3, 'Calculating on-chain require amount', {
-      'Fetch Dollar price': { rate: parseFloat(process.env.USD_BRL_RATE || '5.25') },
-      'Calc': `${operation.amount} / ${process.env.USD_BRL_RATE || '5.25'} == ${rlusdAmount.toFixed(6)}`,
+      'Fetch Dollar price': { rate: this.config.usdBrlRate },
+      'Calc': `${operation.amount} / ${this.config.usdBrlRate} == ${rlusdAmount.toFixed(6)}`,
     });
 
     // Step 5: Update operation with RLUSD requirement
@@ -214,7 +216,7 @@ export class StablecoinService {
   private async subscribeToDeposit(operation: any, operationId: string, walletAddress: string) {
     // Real WebSocket subscriber if enabled, otherwise simulate
     try {
-      if (process.env.ENABLE_XRPL_SUBSCRIBER === 'true') {
+      if (this.config.enableXrplSubscriber) {
         // Subscribe to real XRPL deposits
         this.xrplService.subscribeToWallet(walletAddress, async (tx: any) => {
           if (tx.transaction?.Amount) {

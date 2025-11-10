@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
+import { ConfigService } from '../config/config.service';
 
 @Injectable()
 export class BinanceService {
   private baseUrl = 'https://api.binance.com/api/v3';
+  constructor(private readonly config: ConfigService) {}
 
   // Get current XRP/BRL rate (using USD as intermediate)
   async getXrpBrlRate(): Promise<number> {
@@ -17,7 +19,7 @@ export class BinanceService {
 
       // For hackathon, we'll use the mock USD/BRL rate from env
       // In production, you'd fetch this from BACEN or another source
-      const usdBrl = parseFloat(process.env.USD_BRL_RATE || '5.25');
+      const usdBrl = this.config.usdBrlRate;
 
       return xrpUsd * usdBrl;
     } catch (error) {
@@ -31,8 +33,7 @@ export class BinanceService {
   async getUsdBrlRate(): Promise<number> {
     try {
       // For hackathon, using mock rate
-      const rate = parseFloat(process.env.USD_BRL_RATE || '5.25');
-      return rate;
+      return this.config.usdBrlRate;
     } catch (error) {
       return 5.25; // Mock rate
     }

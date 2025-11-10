@@ -29,6 +29,7 @@
     "axios": "^1.13.2",
     "binance-api-node": "^0.13.2",
     "dotenv": "^17.2.3",
+    "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
