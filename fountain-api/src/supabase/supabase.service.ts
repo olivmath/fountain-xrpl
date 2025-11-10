@@ -273,6 +273,82 @@ export class SupabaseService {
     if (error) return [];
     return data || [];
   }
+
+  // Get operations pending temp wallet cleanup (after deposit confirmed)
+  async getPendingTempWalletCleanups() {
+    if (!this.supabase) return [];
+
+    try {
+      const { data, error } = await this.supabase
+        .from('operations')
+        .select('*')
+        .eq('status', 'deposit_confirmed')
+        .not('temp_wallet_creation_ledger', 'is', null)
+        .is('temp_wallet_deleted_at', null);
+
+      if (error) {
+        console.warn('⚠️  Failed to get pending cleanups:', error);
+        return [];
+      }
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to get pending cleanups:', error);
+      return [];
+    }
+  }
+
+  // Accumulate deposit: Add new deposit amount and track in history
+  async accumulateDeposit(
+    operationId: string,
+    depositAmount: number,
+    txHash: string
+  ): Promise<number> {
+    if (!this.supabase) {
+      // Fallback: just return the amount
+      return depositAmount;
+    }
+
+    try {
+      // Fetch current operation state
+      const current = await this.getOperation(operationId);
+      if (!current) {
+        throw new Error(`Operation ${operationId} not found`);
+      }
+
+      // Calculate new total
+      const currentDeposited = current.amount_deposited || 0;
+      const newTotal = Number(currentDeposited) + depositAmount;
+
+      // Build updated deposit history
+      const currentHistory = (current.deposit_history || []) as any[];
+      const newHistory = [
+        ...currentHistory,
+        {
+          amount: depositAmount,
+          txHash,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      // Atomic update with new deposit info
+      const { error } = await this.supabase
+        .from('operations')
+        .update({
+          amount_deposited: newTotal,
+          deposit_count: (current.deposit_count || 0) + 1,
+          deposit_history: newHistory,
+        })
+        .eq('id', operationId);
+
+      if (error) throw error;
+
+      return newTotal;
+    } catch (error: any) {
+      console.warn('⚠️  Failed to accumulate deposit:', error);
+      throw error;
+    }
+  }
+
   // Auth tokens
   async getActiveCompanyToken(companyId: string) {
     if (!this.supabase) throw new Error('Supabase is not configured');
