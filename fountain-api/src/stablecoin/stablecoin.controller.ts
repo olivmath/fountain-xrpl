@@ -29,7 +29,7 @@ export class StablecoinController {
       type: 'object',
       properties: {
         operationId: { type: 'string' },
-        status: { type: 'string', example: 'REQUIRE_DEPOSIT' },
+        status: { type: 'string', example: 'require_deposit' },
         amountRLUSD: { type: 'number', example: 2476.19 },
         wallet: { type: 'string', example: 'rcLASSiCq8LWcymCHaCgK19QMEvUspuRM' },
       },
@@ -94,7 +94,7 @@ export class StablecoinController {
 
     return {
       operationId: Math.random().toString(36).substring(7),
-      status: 'REQUIRE_DEPOSIT',
+      status: 'require_deposit',
       amount: body.amount,
       depositType: body.depositType,
     };

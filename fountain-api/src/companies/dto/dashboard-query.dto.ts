@@ -1,7 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DashboardQueryDto {
-  @ApiPropertyOptional({ enum: ['REQUIRE_DEPOSIT', 'completed', 'pending'] })
+  @ApiPropertyOptional({
+    enum: ['pending', 'require_deposit', 'waiting_payment', 'partial_deposit', 'deposit_confirmed', 'completed', 'failed'],
+  })
   status?: string;
 
   @ApiPropertyOptional({ enum: ['mint', 'burn'] })

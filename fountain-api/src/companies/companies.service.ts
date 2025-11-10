@@ -45,10 +45,12 @@ export class CompaniesService {
       }
     }
 
-    const summary = { pending: 0, deposit_confirmed: 0, completed: 0, failed: 0, total: 0 } as any;
+    const summary: Record<string, number> = { total: 0 };
     for (const op of operations || []) {
       summary.total += 1;
-      if (op.status && summary[op.status] !== undefined) summary[op.status] += 1;
+      const key = (op.status || '').toString();
+      if (!summary[key]) summary[key] = 0;
+      summary[key] += 1;
     }
 
     const recentOperations = operations || [];
