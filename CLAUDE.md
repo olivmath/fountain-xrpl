@@ -42,10 +42,21 @@ The system uses XRPL Issued Currencies with clawback enabled for flexible token 
 ### Data Model Considerations
 
 - **Stablecoins**: Identified by unique `currency code` (e.g., APBRL); each backed by colateral in issuer wallet
-- **Operations**: Track mint/burn sequences with status (REQUIRE_DEPOSIT, DEPOSIT_CONFIRMED, COMPLETED)
+- **Operations**: Track mint/burn sequences with detailed status tracking (pending, require_deposit, waiting_payment, partial_deposit, deposit_confirmed, completed, failed, cancelled)
 - **Trust Lines**: XRPL native; establish holder-issuer relationships and track balances per currency code
-- **Wallet Management**: Issuer wallet holds collateral; temporary wallets created per on-chain deposit; company wallets specified by tokenizer
+- **Wallet Management**:
+  - Issuer wallet holds collateral
+  - Temporary wallets created per on-chain deposit with encrypted seed storage
+  - Automatic cleanup via AccountDelete after 16 ledgers (~1 minute)
+  - Fund temp wallets with 1.3 XRP for activation
+  - Merge balance back to issuer via AccountDelete transaction (0.2 XRP fee)
+- **Partial Deposits**: Track accumulated deposits with full history (amount, txHash, timestamp)
+  - Duplicate detection via transaction hash
+  - Atomic database updates for accumulation
+  - Auto-mint when total >= required amount
+  - Continue listening if deposit is partial
 - **Collateral**: 1:1 reserve maintained off-chain (Binance/Asas); on-chain supply auditable via XRPL queries
+- **Admin Access**: Role-based access control with `is_admin` flag in JWT token
 
 ## Important Technical Patterns
 
@@ -62,6 +73,11 @@ The system uses XRPL Issued Currencies with clawback enabled for flexible token 
 - **Clawback Feature**: Enabled for partial token recovery without reissuance; critical for redemption flows
 - **Authorized Trust Lines**: Can restrict holders to KYC-approved accounts (for compliance)
 - **Polling Fallback**: WebSocket subscribers may timeout; implement polling for missed events
+- **Temporary Wallets**: Use AccountDelete transaction to merge balances back to issuer after deposits
+  - Valid for 20 ledgers (LastLedgerSequence = currentLedger + 20)
+  - WebSocket ledger listener counts ledgers in real-time
+  - Auto-triggers cleanup when age >= 16 ledgers
+  - Balances safely recovered without manual intervention
 
 ### Operational Patterns
 
@@ -69,6 +85,53 @@ The system uses XRPL Issued Currencies with clawback enabled for flexible token 
 - **Operation Idempotency**: Use operation IDs to prevent duplicate mints/burns
 - **Currency Code Isolation**: Each tokenizer gets unique currency codes; no cross-contamination
 - **Real-time Logging**: Structured logs with emojis (see LOGGING_EXAMPLE.md) for operation visibility
+
+## Admin and Monitoring Features
+
+### Admin Dashboard Endpoints (Protected)
+
+All admin endpoints require `Authorization: Bearer <token>` where the JWT has `isAdmin: true`.
+
+- **GET `/api/v1/admin/statistics`**: Global system statistics
+  - Returns: `{totalCompanies, totalStablecoins, totalOperations, completedOperations, pendingOperations}`
+
+- **GET `/api/v1/admin/companies`**: List all companies with admin status
+  - Returns array of companies with `is_admin` flag
+
+- **GET `/api/v1/admin/stablecoins`**: List all stablecoins across all companies
+  - Returns full stablecoin records with metadata
+
+- **GET `/api/v1/admin/stablecoins/:code`**: Detailed stablecoin information
+  - Includes operation counts, minted amounts, and operation stats
+
+- **GET `/api/v1/admin/temp-wallets?status=<optional>`**: Monitor temporary wallets
+  - Enriched with real-time XRPL balance and deposit progress percentage
+  - Optional status filter (e.g., `pending_deposit`, `deposit_confirmed`)
+
+- **GET `/api/v1/admin/operations?status=<optional>&type=<optional>&limit=<optional>&offset=<optional>`**: All operations
+  - Query filters: status (pending, completed, etc), type (MINT, BURN)
+  - Pagination support with limit and offset
+
+- **GET `/api/v1/admin/companies/:companyId/stablecoins`**: Company's stablecoins
+- **GET `/api/v1/admin/companies/:companyId/operations`**: Company's operations
+
+### Client-Facing Operations Endpoints (Protected)
+
+All operations endpoints require valid JWT authentication and honor company boundaries.
+
+- **GET `/api/v1/operations`**: List company's operations
+  - Users see only their own company operations
+  - Admins can view any operations
+
+- **GET `/api/v1/operations/:operationId`**: Single operation details
+  - Authorization: User can view own operations, admins can view any
+  - Returns full operation record with deposit history
+
+- **GET `/api/v1/operations/:operationId/temp-wallet`**: Temporary wallet status
+  - Real-time XRPL balance
+  - Deposit progress percentage
+  - Full deposit history with timestamps and transaction hashes
+  - Status tracking (pending_deposit, deposit_confirmed, completed, etc)
 
 ## Common Development Tasks
 
@@ -109,6 +172,27 @@ Use the LOGGING_EXAMPLE.md requests to test locally:
 
 ## Key Files & Patterns
 
+### Core Services & Modules
+
+- **`src/auth/auth.service.ts`**: JWT generation and verification with isAdmin flag
+- **`src/auth/admin.middleware.ts`**: Role-based middleware for admin routes
+- **`src/admin/admin.controller.ts`**: Admin dashboard endpoints (8 routes)
+- **`src/admin/admin.service.ts`**: Admin query logic with real-time XRPL balance enrichment
+- **`src/operations/operations.controller.ts`**: Client-facing operations endpoints (3 routes)
+- **`src/operations/operations.service.ts`**: Authorization checks and deposit progress calculation
+- **`src/stablecoin/status.ts`**: Typed status constants for operations and stablecoins
+- **`src/supabase/supabase.service.ts`**: Database layer with 10+ new admin query methods
+- **`src/xrpl/xrpl.service.ts`**: Temporary wallet lifecycle (activation, deletion, ledger counting)
+
+### Database Migrations
+
+- **`supabase/migrations/008_add_admin_role.sql`**: Add `is_admin` column and indexes
+- **`supabase/migrations/007_add_deposit_tracking.sql`**: Deposit history, accumulation, and duplicate detection
+- **`supabase/migrations/006_add_temp_wallet_cleanup.sql`**: Encrypted seeds, ledger tracking, deletion tracking
+- **`supabase/migrations/005_create_companies.sql`**: Company mapping for email-based auth
+
+### Documentation
+
 - **LOGGING_EXAMPLE.md**: Output examples for all flows; use as reference for debugging
 - **NEW_VERSION.md**: Technical specification and monetization strategies
 - **.claude/settings.local.json**: Claude Code local permissions (allows find:*)
@@ -118,9 +202,20 @@ Use the LOGGING_EXAMPLE.md requests to test locally:
 ### High Priority
 
 1. **Private Key Management**: XRPL wallet seeds must use HSM or secure vaults; never log or expose
-2. **Webhook Security**: Use HMAC signatures and validate Origin headers; implement rate limiting
-3. **Idempotency**: Maintain operation deduplication to prevent double-minting or double-burns
-4. **Timeout Handling**: Pending operations must auto-cancel after deadlines; cron jobs for cleanup
+   - Seeds encrypted with AES-256-GCM before database storage
+   - WALLET_ENCRYPTION_KEY from environment (32-byte base64)
+   - Decryption only during wallet operations (activateTempWallet, deleteTempWalletAndMerge)
+2. **Admin Access Control**: JWT `isAdmin` flag must be carefully managed
+   - Only set during authentication (loginByEmail)
+   - Retrieved from companies table `is_admin` column
+   - AdminMiddleware verifies on every protected route
+3. **Webhook Security**: Use HMAC signatures and validate Origin headers; implement rate limiting
+4. **Idempotency**: Maintain operation deduplication to prevent double-minting or double-burns
+   - Duplicate detection via transaction hash in deposit_history
+   - Atomic database updates prevent race conditions
+5. **Timeout Handling**: Pending operations must auto-cancel after deadlines; cron jobs for cleanup
+   - Temporary wallets auto-cleanup after 16 ledgers via AccountDelete
+   - WebSocket ledger listener provides real-time triggering
 
 ### Medium Priority
 
