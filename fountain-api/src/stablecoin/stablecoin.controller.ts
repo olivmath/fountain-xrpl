@@ -1,8 +1,8 @@
-import { Controller, Post, Body, Headers, Get, Param, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, NotFoundException, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { StablecoinService } from './stablecoin.service';
-import { AuthService } from '../auth/auth.service';
 import { CustomLogger } from '../common/logger.service';
+import type { Request } from 'express';
 
 @ApiTags('Stablecoin')
 @ApiBearerAuth()
@@ -10,7 +10,6 @@ import { CustomLogger } from '../common/logger.service';
 export class StablecoinController {
   constructor(
     private stablecoinService: StablecoinService,
-    private authService: AuthService,
     private logger: CustomLogger,
   ) {}
 
@@ -66,7 +65,7 @@ export class StablecoinController {
     description: 'Bad Request - Invalid parameters',
   })
   async createStablecoin(
-    @Headers('authorization') authHeader: string,
+    @Req() req: Request,
     @Body()
     body: {
       companyId: string;
@@ -79,8 +78,7 @@ export class StablecoinController {
       webhookUrl: string;
     },
   ) {
-    const token = this.authService.extractToken(authHeader);
-    const claims = this.authService.verify(token);
+    const claims = (req as any).claims;
 
     return await this.stablecoinService.createStablecoin(
       claims.companyId,
@@ -126,7 +124,7 @@ export class StablecoinController {
     },
   })
   async mintMore(
-    @Headers('authorization') authHeader: string,
+    @Req() req: Request,
     @Body()
     body: {
       stablecoinId: string;
@@ -136,8 +134,7 @@ export class StablecoinController {
       webhookUrl: string;
     },
   ) {
-    const token = this.authService.extractToken(authHeader);
-    const claims = this.authService.verify(token);
+    const claims = (req as any).claims;
 
     // For hackathon, simplified mint operation
     const operation = this.stablecoinService.getStablecoin(body.stablecoinId);
@@ -193,7 +190,7 @@ export class StablecoinController {
     description: 'Not Found - Stablecoin not found',
   })
   async burnStablecoin(
-    @Headers('authorization') authHeader: string,
+    @Req() req: Request,
     @Body()
     body: {
       stablecoinId: string;
@@ -203,8 +200,7 @@ export class StablecoinController {
       webhookUrl: string;
     },
   ) {
-    const token = this.authService.extractToken(authHeader);
-    const claims = this.authService.verify(token);
+    const claims = (req as any).claims;
 
     return await this.stablecoinService.burnStablecoin(
       claims.companyId,
