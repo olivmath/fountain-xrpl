@@ -216,7 +216,7 @@ export class StablecoinService {
 
         // Fallback: polling trust line balance se evento não for entregue
         let polled = false;
-        const issuerAddress = this.xrplService.getIssuerWallet().address;
+        const issuerAddress = this.xrplService.getIssuerAddress();
         const pollInterval = setInterval(async () => {
           if (polled) return; // evita múltiplas confirmações
           try {

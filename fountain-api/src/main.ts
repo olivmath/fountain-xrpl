@@ -13,6 +13,7 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addTag('Auth', 'Authentication endpoints')
     .addTag('Stablecoin', 'Stablecoin mint/burn operations')
+    .addTag('Companies', 'Company dashboard endpoints')
     .addBearerAuth({
       type: 'http',
       scheme: 'bearer',

@@ -180,6 +180,71 @@ export class SupabaseService {
     }
   }
 
+  // ===== Company dashboard helpers =====
+  async getStablecoinsByCompany(companyEmail: string) {
+    if (!this.supabase) return [];
+
+    const { data, error } = await this.supabase
+      .from('stablecoins')
+      .select('*')
+      .contains('metadata', { companyId: companyEmail });
+
+    if (error) return [];
+    return data || [];
+  }
+
+  async getOperationsByStablecoinIds(stablecoinIds: string[]) {
+    if (!this.supabase) return [];
+    if (!stablecoinIds || stablecoinIds.length === 0) return [];
+
+    const { data, error } = await this.supabase
+      .from('operations')
+      .select('*')
+      .in('stablecoin_id', stablecoinIds)
+      .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data || [];
+  }
+
+  async getOperationsByStablecoinIdsWithFilters(
+    stablecoinIds: string[],
+    filters: { status?: string; type?: 'mint' | 'burn'; from?: string; to?: string; limit?: number; offset?: number },
+  ) {
+    if (!this.supabase) return [];
+    if (!stablecoinIds || stablecoinIds.length === 0) return [];
+
+    let query = this.supabase
+      .from('operations')
+      .select('*')
+      .in('stablecoin_id', stablecoinIds)
+      .order('created_at', { ascending: false });
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters?.type) {
+      // DB stores type as uppercase? normalize to upper
+      const normalized = filters.type.toUpperCase();
+      query = query.eq('type', normalized);
+    }
+    if (filters?.from) {
+      query = query.gte('created_at', filters.from);
+    }
+    if (filters?.to) {
+      query = query.lte('created_at', filters.to);
+    }
+
+    if (typeof filters?.limit === 'number' || typeof filters?.offset === 'number') {
+      const lim = typeof filters?.limit === 'number' ? Math.max(0, filters!.limit!) : 10;
+      const off = typeof filters?.offset === 'number' ? Math.max(0, filters!.offset!) : 0;
+      query = query.range(off, off + lim - 1);
+    }
+
+    const { data, error } = await query;
+    if (error) return [];
+    return data || [];
+  }
   // Auth tokens
   async getActiveCompanyToken(companyId: string) {
     if (!this.supabase) throw new Error('Supabase is not configured');

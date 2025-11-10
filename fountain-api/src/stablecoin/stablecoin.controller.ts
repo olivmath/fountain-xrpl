@@ -3,6 +3,9 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam } 
 import { StablecoinService } from './stablecoin.service';
 import { CustomLogger } from '../common/logger.service';
 import type { Request } from 'express';
+import { CreateStablecoinDto } from './dto/create-stablecoin.dto.js';
+import { MintDto } from './dto/mint.dto.js';
+import { BurnDto } from './dto/burn.dto.js';
 
 @ApiTags('Stablecoin')
 @ApiBearerAuth()
@@ -18,31 +21,7 @@ export class StablecoinController {
     summary: 'Create a new stablecoin (Mint)',
     description: 'Create a new stablecoin backed by RLUSD or Pix deposit. Returns temporary wallet address for on-chain deposits.',
   })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        companyId: { type: 'string', example: 'company-1' },
-        clientId: { type: 'string', example: 'client-123' },
-        companyWallet: { type: 'string', example: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr' },
-        clientName: { type: 'string', example: 'Park America Building' },
-        currencyCode: { type: 'string', example: 'PABRL' },
-        amount: { type: 'number', example: 13000 },
-        depositType: { type: 'string', enum: ['RLUSD', 'PIX'], example: 'RLUSD' },
-        webhookUrl: { type: 'string', example: 'http://your-domain.com/webhook' },
-      },
-      required: [
-        'companyId',
-        'clientId',
-        'companyWallet',
-        'clientName',
-        'currencyCode',
-        'amount',
-        'depositType',
-        'webhookUrl',
-      ],
-    },
-  })
+  @ApiBody({ type: CreateStablecoinDto })
   @ApiResponse({
     status: 200,
     description: 'Stablecoin created successfully',
@@ -66,17 +45,7 @@ export class StablecoinController {
   })
   async createStablecoin(
     @Req() req: Request,
-    @Body()
-    body: {
-      companyId: string;
-      clientId: string;
-      companyWallet: string;
-      clientName: string;
-      currencyCode: string;
-      amount: number;
-      depositType: 'RLUSD' | 'PIX';
-      webhookUrl: string;
-    },
+    @Body() body: CreateStablecoinDto,
   ) {
     const claims = (req as any).claims;
 
@@ -97,19 +66,7 @@ export class StablecoinController {
     summary: 'Mint additional stablecoin',
     description: 'Create additional stablecoin tokens for an existing stablecoin currency.',
   })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        stablecoinId: { type: 'string' },
-        companyWallet: { type: 'string', example: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr' },
-        amount: { type: 'number', example: 5000 },
-        depositType: { type: 'string', enum: ['RLUSD', 'PIX'], example: 'RLUSD' },
-        webhookUrl: { type: 'string', example: 'http://your-domain.com/webhook' },
-      },
-      required: ['stablecoinId', 'companyWallet', 'amount', 'depositType', 'webhookUrl'],
-    },
-  })
+  @ApiBody({ type: MintDto })
   @ApiResponse({
     status: 200,
     description: 'Mint operation created',
@@ -125,14 +82,7 @@ export class StablecoinController {
   })
   async mintMore(
     @Req() req: Request,
-    @Body()
-    body: {
-      stablecoinId: string;
-      companyWallet: string;
-      amount: number;
-      depositType: 'RLUSD' | 'PIX';
-      webhookUrl: string;
-    },
+    @Body() body: MintDto,
   ) {
     const claims = (req as any).claims;
 
@@ -155,19 +105,7 @@ export class StablecoinController {
     summary: 'Burn stablecoin and redeem collateral',
     description: 'Burn stablecoin tokens and receive collateral (RLUSD or PIX). Executes clawback on XRPL.',
   })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        stablecoinId: { type: 'string' },
-        currencyCode: { type: 'string', example: 'PABRL' },
-        amountBrl: { type: 'number', example: 5000 },
-        returnAsset: { type: 'string', enum: ['RLUSD', 'PIX'], example: 'RLUSD' },
-        webhookUrl: { type: 'string', example: 'http://your-domain.com/webhook' },
-      },
-      required: ['stablecoinId', 'currencyCode', 'amountBrl', 'returnAsset', 'webhookUrl'],
-    },
-  })
+  @ApiBody({ type: BurnDto })
   @ApiResponse({
     status: 200,
     description: 'Burn operation completed',
@@ -191,14 +129,7 @@ export class StablecoinController {
   })
   async burnStablecoin(
     @Req() req: Request,
-    @Body()
-    body: {
-      stablecoinId: string;
-      currencyCode: string;
-      amountBrl: number;
-      returnAsset: 'RLUSD' | 'PIX';
-      webhookUrl: string;
-    },
+    @Body() body: BurnDto,
   ) {
     const claims = (req as any).claims;
 

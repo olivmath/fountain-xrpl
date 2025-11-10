@@ -50,6 +50,11 @@ export class XrplService {
     return Wallet.fromSeed(this.issuerSeed);
   }
 
+  // Get issuer address without deriving wallet
+  getIssuerAddress(): string {
+    return this.issuerAddress;
+  }
+
   // Mint a stablecoin (Issued Currency)
   async mint(
     issuerWallet: Wallet,

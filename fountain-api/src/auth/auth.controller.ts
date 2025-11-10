@@ -46,7 +46,7 @@ export class AuthController {
     }
 
     this.logger.logOperationStart('LOGIN', { email });
-    this.logger.logStep(1, 'Validando email permitido', { email });
+    this.logger.logStep(1, 'Validando email', { email });
     try {
       const result = await this.authService.loginByEmail(email);
       this.logger.logStep(2, 'Gerando JWT', { expiresIn: '7d' });
