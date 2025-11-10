@@ -147,6 +147,12 @@ export class StablecoinService {
           rlusdRequired: rlusdAmount,
         },
       });
+
+      await this.supabaseService.updateOperation(operationId, {
+        status: 'REQUIRE_DEPOSIT',
+        depositWalletAddress: tempWallet.address,
+        amountRlusd: rlusdAmount,
+      });
     }
 
     this.logger.logStep(4, 'Starting subscribe for this operation', {

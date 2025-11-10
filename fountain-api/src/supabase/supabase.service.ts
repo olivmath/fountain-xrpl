@@ -125,6 +125,8 @@ export class SupabaseService {
     if (typeof updates.status !== 'undefined') payload.status = updates.status;
     if (typeof updates.txHash !== 'undefined') payload.blockchainTxHash = updates.txHash;
     if (typeof updates.amountBurned !== 'undefined') payload.amountBrl = updates.amountBurned;
+    if (typeof updates.depositWalletAddress !== 'undefined') payload.depositWalletAddress = updates.depositWalletAddress;
+    if (typeof updates.amountRlusd !== 'undefined') payload.amountRlusd = updates.amountRlusd;
 
     const { data, error } = await this.supabase
       .from('operations')
