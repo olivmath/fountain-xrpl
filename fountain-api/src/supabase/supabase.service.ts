@@ -48,7 +48,7 @@ export class SupabaseService {
     try {
       const { data, error } = await this.supabase
         .from('companies')
-        .select('id, company_id, company_name, contact_email')
+        .select('id, company_id, company_name, contact_email, is_admin')
         .eq('contact_email', email)
         .maybeSingle();
 
@@ -75,7 +75,7 @@ export class SupabaseService {
       currency_code: op.currencyCode,
       deposit_mode: op.depositType,
       webhook_url: op.webhookUrl,
-      status: 'pending_setup',
+      status: op.depositType === 'PIX' ? 'waiting_payment' : 'require_deposit',
       metadata: {
         companyId: op.companyId,
         tempWalletAddress: op.tempWalletAddress || null,
@@ -282,7 +282,7 @@ export class SupabaseService {
       const { data, error } = await this.supabase
         .from('operations')
         .select('*')
-        .eq('status', 'deposit_confirmed')
+        .in('status', ['deposit_confirmed', 'completed'])
         .not('temp_wallet_creation_ledger', 'is', null)
         .is('temp_wallet_deleted_at', null);
 
@@ -392,6 +392,226 @@ export class SupabaseService {
     } catch (error) {
       console.warn('⚠️  Supabase saveCompanyToken failed:', error);
       throw error;
+    }
+  }
+
+  // ===== Admin Query Methods =====
+  async getGlobalStatistics() {
+    if (!this.supabase) return null;
+
+    try {
+      // Count companies
+      const { count: totalCompanies, error: companiesError } = await this.supabase
+        .from('companies')
+        .select('id', { count: 'exact', head: true });
+
+      // Count stablecoins
+      const { count: totalStablecoins, error: stablesError } = await this.supabase
+        .from('stablecoins')
+        .select('id', { count: 'exact', head: true });
+
+      // Count operations
+      const { count: totalOperations, error: opsError } = await this.supabase
+        .from('operations')
+        .select('id', { count: 'exact', head: true });
+
+      // Count completed operations
+      const { count: completedOperations, error: completedError } = await this.supabase
+        .from('operations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'completed');
+
+      if (companiesError || stablesError || opsError || completedError) {
+        console.warn('⚠️  Failed to fetch global statistics');
+        return null;
+      }
+
+      return {
+        totalCompanies: totalCompanies || 0,
+        totalStablecoins: totalStablecoins || 0,
+        totalOperations: totalOperations || 0,
+        completedOperations: completedOperations || 0,
+        pendingOperations: (totalOperations || 0) - (completedOperations || 0),
+      };
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch global statistics:', error);
+      return null;
+    }
+  }
+
+  async getAllCompanies() {
+    if (!this.supabase) return [];
+
+    try {
+      const { data, error } = await this.supabase
+        .from('companies')
+        .select('id, company_id, company_name, contact_email, is_admin, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('⚠️  Failed to fetch all companies:', error);
+        return [];
+      }
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch all companies:', error);
+      return [];
+    }
+  }
+
+  async getAllStablecoins() {
+    if (!this.supabase) return [];
+
+    try {
+      const { data, error } = await this.supabase
+        .from('stablecoins')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('⚠️  Failed to fetch all stablecoins:', error);
+        return [];
+      }
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch all stablecoins:', error);
+      return [];
+    }
+  }
+
+  async getStablecoinByCode(currencyCode: string) {
+    if (!this.supabase) return null;
+
+    try {
+      const { data, error } = await this.supabase
+        .from('stablecoins')
+        .select('*')
+        .eq('currency_code', currencyCode)
+        .maybeSingle();
+
+      if (error) return null;
+      return data;
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch stablecoin by code:', error);
+      return null;
+    }
+  }
+
+  async getTempWalletsByStatus(status?: string) {
+    if (!this.supabase) return [];
+
+    try {
+      let query = this.supabase
+        .from('operations')
+        .select('*')
+        .not('temp_wallet_address', 'is', null);
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('⚠️  Failed to fetch temp wallets:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch temp wallets:', error);
+      return [];
+    }
+  }
+
+  async getAllOperations(filters?: { status?: string; type?: string; limit?: number; offset?: number }) {
+    if (!this.supabase) return [];
+
+    try {
+      let query = this.supabase
+        .from('operations')
+        .select('*');
+
+      if (filters?.status) {
+        query = query.eq('status', filters.status);
+      }
+
+      if (filters?.type) {
+        query = query.eq('type', filters.type.toUpperCase());
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      if (typeof filters?.limit === 'number' && typeof filters?.offset === 'number') {
+        const lim = Math.max(0, filters.limit);
+        const off = Math.max(0, filters.offset);
+        query = query.range(off, off + lim - 1);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.warn('⚠️  Failed to fetch all operations:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch all operations:', error);
+      return [];
+    }
+  }
+
+  async getCompanyStablecoins(companyId: string) {
+    if (!this.supabase) return [];
+
+    try {
+      const { data, error } = await this.supabase
+        .from('stablecoins')
+        .select('*')
+        .contains('metadata', { companyId })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('⚠️  Failed to fetch company stablecoins:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch company stablecoins:', error);
+      return [];
+    }
+  }
+
+  async getCompanyOperations(companyId: string) {
+    if (!this.supabase) return [];
+
+    try {
+      // Get company's stablecoins first
+      const stablecoins = await this.getCompanyStablecoins(companyId);
+      const stablecoinIds = stablecoins.map((sc: any) => sc.id);
+
+      if (stablecoinIds.length === 0) {
+        return [];
+      }
+
+      // Get all operations for those stablecoins
+      const { data, error } = await this.supabase
+        .from('operations')
+        .select('*')
+        .in('stablecoin_id', stablecoinIds)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('⚠️  Failed to fetch company operations:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error: any) {
+      console.warn('⚠️  Failed to fetch company operations:', error);
+      return [];
     }
   }
 }

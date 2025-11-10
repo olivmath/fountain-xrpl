@@ -30,11 +30,12 @@ export class AuthService {
       throw new UnauthorizedException(`No company found for email: ${normalized}`);
     }
 
-    // Payload includes both email and companyId
+    // Payload includes email, companyId, and admin status
     const payload = {
       email: normalized,
       companyId: company.company_id,
       companyName: company.company_name,
+      isAdmin: company.is_admin || false,
     };
 
     const existing = await this.supabaseService.getActiveCompanyToken(normalized);
