@@ -18,21 +18,22 @@ export class AuthService {
 
   // Login por email permitido - reutiliza JWT ativo ou gera um novo
   async loginByEmail(email: string) {
-    const allowed = await this.supabaseService.isEmailAllowed(email);
+    const normalized = email.trim().toLowerCase();
+    const allowed = await this.supabaseService.isEmailAllowed(normalized);
     if (!allowed) {
       throw new UnauthorizedException('Email não autorizado');
     }
 
-    const payload = { email };
+    const payload = { email: normalized };
 
-    const existing = await this.supabaseService.getActiveCompanyToken(email);
+    const existing = await this.supabaseService.getActiveCompanyToken(normalized);
     if (existing) {
       return { jwt: existing.token, expires: this.jwtExp };
     }
 
     const token = jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExp });
     const expiresAt = new Date(Date.now() + this.parseExpirationMs(this.jwtExp)).toISOString();
-    await this.supabaseService.saveCompanyToken(email, token, expiresAt);
+    await this.supabaseService.saveCompanyToken(normalized, token, expiresAt);
 
     return { jwt: token, expires: this.jwtExp };
   }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { CustomLogger } from '../common/logger.service';
@@ -40,16 +40,23 @@ export class AuthController {
     status: 401,
     description: 'Email não autorizado',
   })
-  async login(@Body() body: { email: string }) {
-    this.logger.logOperationStart('LOGIN', { email: body.email });
-    this.logger.logStep(1, 'Validando email permitido', { email: body.email });
-    this.logger.logStep(2, 'Gerando JWT', { expiresIn: '7d' });
-    this.logger.logValidation('JWT gerado com sucesso', true);
+  async login(@Body('email') email: string) {
+    if (!email || typeof email !== 'string' || email.trim().length === 0) {
+      throw new BadRequestException('Campo email é obrigatório');
+    }
 
-    const result = await this.authService.loginByEmail(body.email);
-
-    this.logger.logOperationSuccess('LOGIN', result);
-
-    return result;
+    this.logger.logOperationStart('LOGIN', { email });
+    this.logger.logStep(1, 'Validando email permitido', { email });
+    try {
+      const result = await this.authService.loginByEmail(email);
+      this.logger.logStep(2, 'Gerando JWT', { expiresIn: '7d' });
+      this.logger.logValidation('JWT gerado com sucesso', true);
+      this.logger.logOperationSuccess('LOGIN', result);
+      return result;
+    } catch (error) {
+      this.logger.logValidation('Email não autorizado', false, { email });
+      this.logger.logOperationError('LOGIN', error);
+      throw error;
+    }
   }
 }
