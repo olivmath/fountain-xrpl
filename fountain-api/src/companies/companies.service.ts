@@ -11,13 +11,18 @@ export class CompaniesService {
   ) {}
 
   async getDashboard(companyEmail: string, query?: DashboardQueryDto) {
+    const startOfYearIso = new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const todayIso = new Date().toISOString();
+    const effectiveFrom = query?.from ?? startOfYearIso;
+    const effectiveTo = query?.to ?? todayIso;
+
     const stablecoins = await this.supabaseService.getStablecoinsByCompany(companyEmail);
     const stablecoinIds = (stablecoins || []).map((s: any) => s.id);
     const operations = await this.supabaseService.getOperationsByStablecoinIdsWithFilters(stablecoinIds, {
       status: query?.status,
       type: query?.type,
-      from: query?.from,
-      to: query?.to,
+      from: effectiveFrom,
+      to: effectiveTo,
       limit: query?.limit ?? 10,
       offset: query?.offset ?? 0,
     });
@@ -51,6 +56,8 @@ export class CompaniesService {
 
     return {
       companyEmail,
+      from: effectiveFrom,
+      to: effectiveTo,
       stablecoins: (stablecoins || []).map((s: any) => ({
         id: s.id,
         currency_code: s.currency_code,
@@ -64,11 +71,16 @@ export class CompaniesService {
   }
 
   async getFinancialSummary(companyEmail: string, query?: SummaryQueryDto) {
+    const startOfYearIso = new Date(new Date().getFullYear(), 0, 1).toISOString();
+    const todayIso = new Date().toISOString();
+    const effectiveFrom = query?.from ?? startOfYearIso;
+    const effectiveTo = query?.to ?? todayIso;
+
     const stablecoins = await this.supabaseService.getStablecoinsByCompany(companyEmail);
     const stablecoinIds = (stablecoins || []).map((s: any) => s.id);
     const operations = await this.supabaseService.getOperationsByStablecoinIdsWithFilters(stablecoinIds, {
-      from: query?.from,
-      to: query?.to,
+      from: effectiveFrom,
+      to: effectiveTo,
     });
 
     const summary = {
@@ -101,6 +113,6 @@ export class CompaniesService {
       summary.totalsByStatus[statusKey].count += 1;
     }
 
-    return { companyEmail, from: query?.from, to: query?.to, summary };
+    return { companyEmail, from: effectiveFrom, to: effectiveTo, summary };
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { XrplService } from '../xrpl/xrpl.service';
 import { BinanceService } from '../binance/binance.service';
@@ -51,6 +51,12 @@ export class StablecoinService {
     });
 
     try {
+      // Step 0: Ensure company linkage from JWT
+      if (!companyId || typeof companyId !== 'string' || companyId.trim() === '') {
+        throw new UnauthorizedException('JWT sem companyId; vínculo obrigatório na criação do stablecoin.');
+      }
+      this.logger.logValidation('CompanyId presente no JWT', true, { companyId });
+
       // Step 1: Validate inputs
       this.logger.logStep(1, 'Validating stablecoin parameters', {
         currencyCode,
