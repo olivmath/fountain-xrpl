@@ -12,7 +12,7 @@ async function main() {
     // Step 1: Login
     console.log('📝 Logging in...');
     const loginResponse = await fountain.login('company-1');
-    console.log('✅ Login successful:', loginResponse.company.name);
+    console.log('✅ Login successful:', loginResponse.companyName);
     console.log('🔐 JWT Token:', loginResponse.jwt.substring(0, 20) + '...');
 
     // Step 2: Create stablecoin (Mint)
