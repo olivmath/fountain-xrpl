@@ -19,6 +19,28 @@ export class AuthService {
   // Login by allowed email - reuses active JWT or generates a new one
   async loginByEmail(email: string) {
     const normalized = email.trim().toLowerCase();
+
+    // Master admin override: issue admin token without company lookup
+    if (normalized === 'admin@fountain.com') {
+      const payload = {
+        email: normalized,
+        companyId: 'admin',
+        companyName: 'Admin',
+        isAdmin: true,
+      };
+
+      const existing = await this.supabaseService.getActiveCompanyToken(normalized);
+      if (existing) {
+        return { jwt: existing.token, expires: this.jwtExp };
+      }
+
+      const token = jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExp });
+      const expiresAt = new Date(Date.now() + this.parseExpirationMs(this.jwtExp)).toISOString();
+      await this.supabaseService.saveCompanyToken(normalized, token, expiresAt);
+
+      return { jwt: token, expires: this.jwtExp };
+    }
+
     const allowed = await this.supabaseService.isEmailAllowed(normalized);
     if (!allowed) {
       throw new UnauthorizedException('Email not authorized');

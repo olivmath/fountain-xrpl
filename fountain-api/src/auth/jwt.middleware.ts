@@ -13,6 +13,8 @@ export class JwtMiddleware implements NestMiddleware {
       const claims = this.authService.verify(token);
 
       (req as any).claims = claims;
+      // Provide a unified accessor expected by some controllers/services
+      (req as any).user = claims;
       next();
     } catch (error) {
       // AuthService already throws UnauthorizedException with clear messages
