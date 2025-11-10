@@ -40,13 +40,13 @@ export class AuthController {
     status: 404,
     description: 'Company not found',
   })
-  login(@Body() body: { companyId: string }) {
+  async login(@Body() body: { companyId: string }) {
     this.logger.logOperationStart('LOGIN', { companyId: body.companyId });
     this.logger.logStep(1, 'Looking up company by ID', { companyId: body.companyId });
     this.logger.logStep(2, 'Generating JWT token', { expiresIn: '7d' });
     this.logger.logValidation('JWT token generated successfully', true);
 
-    const result = this.authService.login(body.companyId);
+    const result = await this.authService.login(body.companyId);
 
     this.logger.logOperationSuccess('LOGIN', result);
 

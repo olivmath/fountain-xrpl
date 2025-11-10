@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class AuthService {
@@ -11,8 +12,10 @@ export class AuthService {
     'company-2': { id: 'company-2', name: 'Tech Startup Inc', email: 'tech@example.com' },
   };
 
-  // Simple login - just generate JWT
-  login(companyId: string) {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  // Simple login - reuse existing active JWT or generate a new one
+  async login(companyId: string) {
     if (!this.companies[companyId]) {
       throw new NotFoundException(`Company '${companyId}' not found. Available companies: company-1, company-2`);
     }
@@ -23,12 +26,16 @@ export class AuthService {
       email: this.companies[companyId].email,
     };
 
-    const token = jwt.sign(payload, this.jwtSecret, { expiresIn: '7d' });
+    const existing = await this.supabaseService.getActiveCompanyToken(companyId);
+    if (existing) {
+      return { jwt: existing.token, expires: '7d' };
+    }
 
-    return {
-      jwt: token,
-      expires: '7d',
-    };
+    const token = jwt.sign(payload, this.jwtSecret, { expiresIn: '7d' });
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await this.supabaseService.saveCompanyToken(companyId, token, expiresAt);
+
+    return { jwt: token, expires: '7d' };
   }
 
   // Verify JWT

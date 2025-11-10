@@ -4,6 +4,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 @Injectable()
 export class SupabaseService {
   private supabase: SupabaseClient | null;
+  private tokens: Map<string, { token: string; expiresAt: string }> = new Map();
 
   constructor() {
     const url = process.env.SUPABASE_URL;
@@ -129,6 +130,51 @@ export class SupabaseService {
       .from('operations')
       .update(payload)
       .eq('id', id)
+      .select();
+
+    if (error) throw error;
+    return data![0];
+  }
+
+  // Auth tokens
+  async getActiveCompanyToken(companyId: string) {
+    if (!this.supabase) {
+      const existing = this.tokens.get(companyId);
+      if (existing && new Date(existing.expiresAt) > new Date()) {
+        return existing;
+      }
+      return null;
+    }
+
+    const nowIso = new Date().toISOString();
+    const { data, error } = await this.supabase
+      .from('auth_tokens')
+      .select('*')
+      .eq('companyId', companyId)
+      .gt('expiresAt', nowIso)
+      .order('createdAt', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return null;
+    return data;
+  }
+
+  async saveCompanyToken(companyId: string, token: string, expiresAt: string) {
+    if (!this.supabase) {
+      this.tokens.set(companyId, { token, expiresAt });
+      return { companyId, token, expiresAt };
+    }
+
+    const payload = {
+      companyId,
+      token,
+      expiresAt,
+    };
+
+    const { data, error } = await this.supabase
+      .from('auth_tokens')
+      .insert([payload])
       .select();
 
     if (error) throw error;
