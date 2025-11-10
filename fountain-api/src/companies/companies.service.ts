@@ -11,10 +11,9 @@ export class CompaniesService {
   ) {}
 
   async getDashboard(companyEmail: string, query?: DashboardQueryDto) {
-    const startOfYearIso = new Date(new Date().getFullYear(), 0, 1).toISOString();
-    const todayIso = new Date().toISOString();
-    const effectiveFrom = query?.from ?? startOfYearIso;
-    const effectiveTo = query?.to ?? todayIso;
+    // Do not apply default date filters; if from/to are not provided, fetch all
+    const effectiveFrom = query?.from;
+    const effectiveTo = query?.to;
 
     const stablecoins = await this.supabaseService.getStablecoinsByCompany(companyEmail);
     const stablecoinIds = (stablecoins || []).map((s: any) => s.id);
@@ -56,8 +55,8 @@ export class CompaniesService {
 
     return {
       companyEmail,
-      from: effectiveFrom,
-      to: effectiveTo,
+      from: effectiveFrom ?? null,
+      to: effectiveTo ?? null,
       stablecoins: (stablecoins || []).map((s: any) => ({
         id: s.id,
         currency_code: s.currency_code,
@@ -71,10 +70,9 @@ export class CompaniesService {
   }
 
   async getFinancialSummary(companyEmail: string, query?: SummaryQueryDto) {
-    const startOfYearIso = new Date(new Date().getFullYear(), 0, 1).toISOString();
-    const todayIso = new Date().toISOString();
-    const effectiveFrom = query?.from ?? startOfYearIso;
-    const effectiveTo = query?.to ?? todayIso;
+    // Do not apply default date filters; if from/to are not provided, fetch all
+    const effectiveFrom = query?.from;
+    const effectiveTo = query?.to;
 
     const stablecoins = await this.supabaseService.getStablecoinsByCompany(companyEmail);
     const stablecoinIds = (stablecoins || []).map((s: any) => s.id);
@@ -113,6 +111,6 @@ export class CompaniesService {
       summary.totalsByStatus[statusKey].count += 1;
     }
 
-    return { companyEmail, from: effectiveFrom, to: effectiveTo, summary };
+    return { companyEmail, from: effectiveFrom ?? null, to: effectiveTo ?? null, summary };
   }
 }

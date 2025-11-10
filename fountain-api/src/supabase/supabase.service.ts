@@ -42,6 +42,27 @@ export class SupabaseService {
     }
   }
 
+  // Get company by email
+  async getCompanyByEmail(email: string): Promise<any> {
+    if (!this.supabase) return null;
+    try {
+      const { data, error } = await this.supabase
+        .from('companies')
+        .select('id, company_id, company_name, contact_email')
+        .eq('contact_email', email)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('⚠️  Supabase getCompanyByEmail failed:', error);
+        return null;
+      }
+      return data;
+    } catch (error: any) {
+      console.warn('⚠️  Supabase getCompanyByEmail failed:', error);
+      return null;
+    }
+  }
+
   // Stablecoins table operations
   async createStablecoin(op: any) {
     if (!this.supabase) throw new Error('Supabase is not configured');
@@ -184,10 +205,17 @@ export class SupabaseService {
   async getStablecoinsByCompany(companyEmail: string) {
     if (!this.supabase) return [];
 
+    // Resolve email -> company_id to match how we persist stablecoins metadata
+    const company = await this.getCompanyByEmail(companyEmail);
+    const companyId = company?.company_id;
+    if (!companyId) {
+      return [];
+    }
+
     const { data, error } = await this.supabase
       .from('stablecoins')
       .select('*')
-      .contains('metadata', { companyId: companyEmail });
+      .contains('metadata', { companyId });
 
     if (error) return [];
     return data || [];

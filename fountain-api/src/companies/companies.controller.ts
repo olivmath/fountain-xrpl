@@ -3,34 +3,26 @@ import { CompaniesService } from './companies.service.js';
 import { ApiBearerAuth, ApiOkResponse, ApiParam, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { DashboardQueryDto, SummaryQueryDto } from './dto/dashboard-query.dto.js';
 
-// Default dates for Swagger: start of current year to today
-const START_OF_YEAR_ISO = new Date(new Date().getFullYear(), 0, 1).toISOString();
-const TODAY_ISO = new Date().toISOString();
-
 @ApiTags('Companies')
 @ApiBearerAuth()
 @Controller('api/v1/companies')
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
-  @Get(':email/dashboard')
-  @ApiParam({ name: 'email', required: true, description: 'Email da empresa (companyId)' })
-  @ApiOkResponse({ description: 'Dados agregados para o dashboard da empresa.' })
+  @ApiParam({ name: 'email', required: true, description: 'Company email (companyId)' })
+  @ApiOkResponse({ description: 'Aggregated data for the company dashboard.' })
   @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'type', required: false, enum: ['mint', 'burn'] })
   @ApiQuery({
     name: 'from',
     required: false,
-    description: 'ISO start',
-    example: START_OF_YEAR_ISO,
-    schema: { type: 'string', default: START_OF_YEAR_ISO },
+    description: 'ISO start (optional)',
+    schema: { type: 'string' },
   })
   @ApiQuery({
     name: 'to',
     required: false,
-    description: 'ISO end',
-    example: TODAY_ISO,
-    schema: { type: 'string', default: TODAY_ISO },
+    description: 'ISO end (optional)',
+    schema: { type: 'string' },
   })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'offset', required: false })
@@ -41,27 +33,25 @@ export class CompaniesController {
   ) {
     const claimsEmail = req?.claims?.email;
     if (!claimsEmail || claimsEmail.toLowerCase() !== String(email).toLowerCase()) {
-      throw new UnauthorizedException('Token não corresponde ao email solicitado');
+      throw new UnauthorizedException('Token does not match the requested email');
     }
     return this.companiesService.getDashboard(email.toLowerCase(), query);
   }
 
   @Get(':email/summary')
   @ApiParam({ name: 'email', required: true, description: 'Email da empresa (companyId)' })
-  @ApiOkResponse({ description: 'Resumo financeiro por intervalo de datas.' })
+  @ApiOkResponse({ description: 'Financial summary by date range.' })
   @ApiQuery({
     name: 'from',
     required: false,
-    description: 'ISO start',
-    example: START_OF_YEAR_ISO,
-    schema: { type: 'string', default: START_OF_YEAR_ISO },
+    description: 'ISO start (opcional)',
+    schema: { type: 'string' },
   })
   @ApiQuery({
     name: 'to',
     required: false,
-    description: 'ISO end',
-    example: TODAY_ISO,
-    schema: { type: 'string', default: TODAY_ISO },
+    description: 'ISO end (opcional)',
+    schema: { type: 'string' },
   })
   async getCompanyFinancialSummary(
     @Param('email') email: string,
@@ -70,7 +60,7 @@ export class CompaniesController {
   ) {
     const claimsEmail = req?.claims?.email;
     if (!claimsEmail || claimsEmail.toLowerCase() !== String(email).toLowerCase()) {
-      throw new UnauthorizedException('Token não corresponde ao email solicitado');
+      throw new UnauthorizedException('Token does not match the requested email');
     }
     return this.companiesService.getFinancialSummary(email.toLowerCase(), query);
   }

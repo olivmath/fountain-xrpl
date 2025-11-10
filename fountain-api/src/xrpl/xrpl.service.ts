@@ -64,15 +64,15 @@ export class XrplService {
     enableClawback = true,
   ) {
     try {
-      // Verificar trust line do holder para o issuer
+      // Check holder's trust line to the issuer
       const lines = await this.getAccountLines(holderAddress);
       const hasLine = (lines || []).some(
         (l: any) => l.currency === currencyCode && l.issuer === issuerWallet.address,
       );
       if (!hasLine) {
         throw new Error(
-          `Trust line ausente para ${currencyCode} com issuer ${issuerWallet.address}. ` +
-          `O holder (${holderAddress}) deve enviar um TrustSet com LimitAmount >= ${amount}.`,
+          `Trust line missing for ${currencyCode} with issuer ${issuerWallet.address}. ` +
+          `The holder (${holderAddress}) must send a TrustSet with LimitAmount >= ${amount}.`,
         );
       }
 
@@ -121,9 +121,9 @@ export class XrplService {
         TransactionType: 'TrustSet',
       };
 
-      // TrustSet deve ser assinado pelo próprio holder. Aqui apenas retornamos
-      // instruções de erro se a linha não existir e evitamos assinar por ele.
-      throw new Error('TrustSet deve ser assinado pelo holder; não é possível assinar pelo emissor.');
+      // TrustSet must be signed by the holder. Here we just return
+      // error instructions if the line does not exist and we avoid signing for it.
+      throw new Error('TrustSet must be signed by the holder; it is not possible to sign by the issuer.');
     } catch (error) {
       // Trust line might already exist, ignore
       console.log('Trust line setting note:', error.message);
@@ -142,7 +142,7 @@ export class XrplService {
         Account: issuerWallet.address,
         Amount: {
           currency: currencyCode,
-          // Em Clawback de trust line, issuer sub-field indica o HOLDER
+          // In Clawback of a trust line, the issuer sub-field indicates the HOLDER
           issuer: holderAddress,
           value: amount,
         },

@@ -16,15 +16,26 @@ export class AuthService {
     this.jwtExp = this.config.jwtExpiration || '7d';
   }
 
-  // Login por email permitido - reutiliza JWT ativo ou gera um novo
+  // Login by allowed email - reuses active JWT or generates a new one
   async loginByEmail(email: string) {
     const normalized = email.trim().toLowerCase();
     const allowed = await this.supabaseService.isEmailAllowed(normalized);
     if (!allowed) {
-      throw new UnauthorizedException('Email não autorizado');
+      throw new UnauthorizedException('Email not authorized');
     }
 
-    const payload = { email: normalized };
+    // Fetch company associated with email
+    const company = await this.supabaseService.getCompanyByEmail(normalized);
+    if (!company) {
+      throw new UnauthorizedException(`No company found for email: ${normalized}`);
+    }
+
+    // Payload includes both email and companyId
+    const payload = {
+      email: normalized,
+      companyId: company.company_id,
+      companyName: company.company_name,
+    };
 
     const existing = await this.supabaseService.getActiveCompanyToken(normalized);
     if (existing) {
@@ -48,7 +59,7 @@ export class AuthService {
     }
   }
 
-  // Extract token from Authorization header (robusto contra duplicação de "Bearer")
+  // Extract token from Authorization header (robust against "Bearer" duplication)
   extractToken(authHeader: string): string {
     if (!authHeader) {
       throw new UnauthorizedException('Authorization header must be in format: Bearer <token>');
@@ -59,16 +70,16 @@ export class AuthService {
       throw new UnauthorizedException('Authorization header must be in format: Bearer <token>');
     }
 
-    // Se usuário colou "Bearer <token>" no Swagger, o header vira "Bearer Bearer <token>".
-    // Pegamos sempre o último segmento como token real.
+    // If the user pastes "Bearer <token>" in Swagger, the header becomes "Bearer Bearer <token>".
+    // We always take the last segment as the real token.
     return parts[parts.length - 1];
   }
 
   private parseExpirationMs(exp: string): number {
-    // simples parser para formatos como '7d', '24h', '15m'
+    // simple parser for formats like '7d', '24h', '15m'
     const match = exp.match(/^(\d+)([smhd])$/);
     if (!match) {
-      // fallback 7 dias
+      // fallback 7 days
       return 7 * 24 * 60 * 60 * 1000;
     }
     const value = parseInt(match[1], 10);
