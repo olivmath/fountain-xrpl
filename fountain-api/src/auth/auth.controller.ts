@@ -13,21 +13,21 @@ export class AuthController {
 
   @Post()
   @ApiOperation({
-    summary: 'Login and get JWT token',
-    description: 'Authenticate a company and receive a JWT token valid for 7 days',
+    summary: 'Login e obtenha JWT',
+    description: 'Autentica por email permitido e retorna JWT válido por 7 dias',
   })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        companyId: { type: 'string', example: 'company-1' },
+        email: { type: 'string', example: 'sonica@tokenizadora.com' },
       },
-      required: ['companyId'],
+      required: ['email'],
     },
   })
   @ApiResponse({
     status: 200,
-    description: 'Login successful',
+    description: 'Login permitido',
     schema: {
       type: 'object',
       properties: {
@@ -37,16 +37,16 @@ export class AuthController {
     },
   })
   @ApiResponse({
-    status: 404,
-    description: 'Company not found',
+    status: 401,
+    description: 'Email não autorizado',
   })
-  async login(@Body() body: { companyId: string }) {
-    this.logger.logOperationStart('LOGIN', { companyId: body.companyId });
-    this.logger.logStep(1, 'Looking up company by ID', { companyId: body.companyId });
-    this.logger.logStep(2, 'Generating JWT token', { expiresIn: '7d' });
-    this.logger.logValidation('JWT token generated successfully', true);
+  async login(@Body() body: { email: string }) {
+    this.logger.logOperationStart('LOGIN', { email: body.email });
+    this.logger.logStep(1, 'Validando email permitido', { email: body.email });
+    this.logger.logStep(2, 'Gerando JWT', { expiresIn: '7d' });
+    this.logger.logValidation('JWT gerado com sucesso', true);
 
-    const result = await this.authService.login(body.companyId);
+    const result = await this.authService.loginByEmail(body.email);
 
     this.logger.logOperationSuccess('LOGIN', result);
 

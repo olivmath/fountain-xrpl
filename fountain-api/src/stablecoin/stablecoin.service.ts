@@ -10,10 +10,7 @@ import { ConfigService } from '../config/config.service';
 
 @Injectable()
 export class StablecoinService {
-  // Fallback in-memory database (when Supabase not available)
-  private stablecoins: Map<string, any> = new Map();
-  private operations: Map<string, any> = new Map();
-  private tempWallets: Map<string, any> = new Map();
+  // Removido cache em memória: todas operações vão direto ao banco
 
   constructor(
     private xrplService: XrplService,
@@ -64,7 +61,7 @@ export class StablecoinService {
         throw new Error('Invalid currency code');
       }
 
-      // Step 2: Create operation record
+      // Step 2: Create operation record (estado inicial: pending)
       let stablecoinId = uuidv4();
       const operation: any = {
         operationId,
@@ -78,23 +75,18 @@ export class StablecoinService {
         depositType,
         companyWallet,
         webhookUrl,
-        status: 'REQUIRE_DEPOSIT',
+        status: 'pending',
         createdAt: new Date(),
       };
       
-      // Persistência prioritária no Supabase com fallback para Map
-      if (this.supabaseService.isConnected()) {
-        const scRow = await this.supabaseService.createStablecoin(operation);
-        stablecoinId = scRow.id;
-        operation.stablecoinId = stablecoinId;
+      // Persistência no Supabase
+      const scRow = await this.supabaseService.createStablecoin(operation);
+      stablecoinId = scRow.id;
+      operation.stablecoinId = stablecoinId;
 
-        const opRow = await this.supabaseService.createOperation(operation);
-        operationId = opRow.id;
-        operation.operationId = operationId;
-      } else {
-        this.stablecoins.set(stablecoinId, operation);
-        this.operations.set(operationId, operation);
-      }
+      const opRow = await this.supabaseService.createOperation(operation);
+      operationId = opRow.id;
+      operation.operationId = operationId;
 
       this.logger.logDataCreated('OPERATION', operationId, {
         stablecoinId,
@@ -122,11 +114,7 @@ export class StablecoinService {
       address: tempWallet.address,
     });
 
-    this.tempWallets.set(tempWallet.address, {
-      stablecoinId: operation.stablecoinId,
-      operationId,
-      createdAt: new Date(),
-    });
+    // Todas informações serão persistidas via Supabase
 
     // Step 4: Calculate required RLUSD amount
     const rlusdAmount = await this.binanceService.calculateRlusdForBrl(operation.amount);
@@ -140,22 +128,19 @@ export class StablecoinService {
     operation.tempWalletAddress = tempWallet.address;
 
     // Persistir carteira temporária e requisito RLUSD no banco
-    if (this.supabaseService.isConnected()) {
-      await this.supabaseService.updateStablecoin(operation.stablecoinId, {
-        status: 'REQUIRE_DEPOSIT',
-        metadata: {
-          companyId: operation.companyId,
-          tempWalletAddress: tempWallet.address,
-          rlusdRequired: rlusdAmount,
-        },
-      });
+    await this.supabaseService.updateStablecoin(operation.stablecoinId, {
+      metadata: {
+        companyId: operation.companyId,
+        tempWalletAddress: tempWallet.address,
+        rlusdRequired: rlusdAmount,
+      },
+    });
 
-      await this.supabaseService.updateOperation(operationId, {
-        status: 'REQUIRE_DEPOSIT',
-        depositWalletAddress: tempWallet.address,
-        amountRlusd: rlusdAmount,
-      });
-    }
+    await this.supabaseService.updateOperation(operationId, {
+      status: 'pending',
+      depositWalletAddress: tempWallet.address,
+      amountRlusd: rlusdAmount,
+    });
 
     this.logger.logStep(4, 'Starting subscribe for this operation', {
       'LISTEN DEPOSIT ON': tempWallet.address,
@@ -272,10 +257,10 @@ export class StablecoinService {
       'Deposited': amountDeposited.toFixed(6),
     });
 
-    // Update operation status
-    operation.status = 'DEPOSIT_CONFIRMED';
+    // Update operation status para depósito confirmado
+    operation.status = 'deposit_confirmed';
     operation.amountDeposited = amountDeposited;
-    operation.txHash = `0x${Math.random().toString(16).slice(2)}`;
+    // txHash será preenchido após mint
 
     this.logger.logStateUpdate('OPERATION', operationId, { status: 'REQUIRE_DEPOSIT' }, { status: 'DEPOSIT_CONFIRMED' });
 
@@ -310,12 +295,9 @@ export class StablecoinService {
         status: 'completed',
       });
 
-      operation.status = 'COMPLETED';
-      if (!this.supabaseService.isConnected()) {
-        this.operations.set(operationId, operation);
-      } else {
-        await this.supabaseService.updateOperation(operationId, { status: 'COMPLETED', txHash: mintResult.txHash });
-      }
+      // Atualizar operação para completed e registrar tx
+      operation.status = 'completed';
+      await this.supabaseService.updateOperation(operationId, { status: 'completed', txHash: mintResult.txHash });
 
       this.logger.logOperationSuccess('MINT', {
         operationId,
@@ -324,12 +306,8 @@ export class StablecoinService {
       });
     } catch (error) {
       this.logger.logOperationError('MINT', error);
-      operation.status = 'FAILED';
-      if (!this.supabaseService.isConnected()) {
-        this.operations.set(operationId, operation);
-      } else {
-        await this.supabaseService.updateOperation(operationId, { status: 'FAILED' });
-      }
+      operation.status = 'failed';
+      await this.supabaseService.updateOperation(operationId, { status: 'failed' });
     }
   }
 
@@ -352,9 +330,8 @@ export class StablecoinService {
     });
 
     try {
-      const operation = this.supabaseService.isConnected()
-        ? await this.supabaseService.getStablecoin(stablecoinId)
-        : this.stablecoins.get(stablecoinId);
+      // Buscar stablecoin só via banco
+      const operation = await this.supabaseService.getStablecoin(stablecoinId);
       if (!operation) {
         throw new Error('Stablecoin not found');
       }
@@ -393,6 +370,15 @@ export class StablecoinService {
         rlusdToReturn: returnAmount.toFixed(6),
       });
 
+      // Step 4.5: Criar operação BURN no banco
+      const burnOp = await this.supabaseService.createOperation({
+        stablecoinId,
+        type: 'BURN',
+        status: 'pending',
+        amount: amountBrl,
+        depositType: returnAsset,
+      });
+
       // Step 5: Execute clawback
       this.logger.logStep(5, 'Executing clawback (partial) on XRPL');
       const issuerWallet = this.xrplService.getIssuerWallet();
@@ -409,14 +395,11 @@ export class StablecoinService {
         tokenAmount: amountBrl,
       });
 
-      // Update operation
-      operation.status = 'COMPLETED';
+      // Update operation para completed
+      operation.status = 'completed';
       operation.amountBurned = amountBrl;
-      if (!this.supabaseService.isConnected()) {
-        this.operations.set(operationId, operation);
-      }
-      await this.supabaseService.updateOperation(operationId, {
-        status: 'COMPLETED',
+      await this.supabaseService.updateOperation(burnOp.id, {
+        status: 'completed',
         amountBurned: amountBrl,
         txHash: clawbackResult.txHash
       });
@@ -450,20 +433,14 @@ export class StablecoinService {
 
   // Get stablecoin details
   async getStablecoin(stablecoinId: string) {
-    if (this.supabaseService.isConnected()) {
-      const sc = await this.supabaseService.getStablecoin(stablecoinId);
-      if (sc) return sc;
-    }
-    return this.stablecoins.get(stablecoinId);
+    const sc = await this.supabaseService.getStablecoin(stablecoinId);
+    return sc;
   }
 
   // Get operation details
   async getOperation(operationId: string) {
-    if (this.supabaseService.isConnected()) {
-      const op = await this.supabaseService.getOperation(operationId);
-      if (op) return op;
-    }
-    return this.operations.get(operationId);
+    const op = await this.supabaseService.getOperation(operationId);
+    return op;
   }
 
   // Send webhook notification

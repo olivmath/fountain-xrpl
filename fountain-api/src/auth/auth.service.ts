@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ConfigService } from '../config/config.service';
@@ -8,12 +8,6 @@ export class AuthService {
   private jwtSecret: string;
   private jwtExp: string;
 
-  // Mock companies for hackathon
-  private companies = {
-    'company-1': { id: 'company-1', name: 'Park America', email: 'park@example.com' },
-    'company-2': { id: 'company-2', name: 'Tech Startup Inc', email: 'tech@example.com' },
-  };
-
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly config: ConfigService,
@@ -22,26 +16,23 @@ export class AuthService {
     this.jwtExp = this.config.jwtExpiration || '7d';
   }
 
-  // Simple login - reuse existing active JWT or generate a new one
-  async login(companyId: string) {
-    if (!this.companies[companyId]) {
-      throw new NotFoundException(`Company '${companyId}' not found. Available companies: company-1, company-2`);
+  // Login por email permitido - reutiliza JWT ativo ou gera um novo
+  async loginByEmail(email: string) {
+    const allowed = await this.supabaseService.isEmailAllowed(email);
+    if (!allowed) {
+      throw new UnauthorizedException('Email não autorizado');
     }
 
-    const payload = {
-      companyId,
-      name: this.companies[companyId].name,
-      email: this.companies[companyId].email,
-    };
+    const payload = { email };
 
-    const existing = await this.supabaseService.getActiveCompanyToken(companyId);
+    const existing = await this.supabaseService.getActiveCompanyToken(email);
     if (existing) {
       return { jwt: existing.token, expires: this.jwtExp };
     }
 
     const token = jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExp });
     const expiresAt = new Date(Date.now() + this.parseExpirationMs(this.jwtExp)).toISOString();
-    await this.supabaseService.saveCompanyToken(companyId, token, expiresAt);
+    await this.supabaseService.saveCompanyToken(email, token, expiresAt);
 
     return { jwt: token, expires: this.jwtExp };
   }
