@@ -8,6 +8,7 @@ import { EncryptionService } from '../common/encryption.service';
 import { Wallet } from 'xrpl';
 import axios from 'axios';
 import { ConfigService } from '../config/config.service';
+import { OperationStatus, StablecoinStatus } from './status';
 
 @Injectable()
 export class StablecoinService {
@@ -85,7 +86,7 @@ export class StablecoinService {
         depositType,
         companyWallet,
         webhookUrl,
-        status: 'pending',
+        status: OperationStatus.PENDING,
         createdAt: new Date(),
       };
       
@@ -146,6 +147,7 @@ export class StablecoinService {
     operation.tempWalletAddress = tempWallet.address;
 
     await this.supabaseService.updateStablecoin(operation.stablecoinId, {
+      status: StablecoinStatus.REQUIRE_DEPOSIT,
       metadata: {
         companyId: operation.companyId,
         tempWalletAddress: tempWallet.address,
@@ -154,7 +156,7 @@ export class StablecoinService {
     });
 
     await this.supabaseService.updateOperation(operationId, {
-      status: 'pending',
+      status: OperationStatus.REQUIRE_DEPOSIT,
       depositWalletAddress: tempWallet.address,
       amountRlusd: rlusdAmount,
       tempWalletSeedEncrypted: encryptedSeed,
@@ -216,7 +218,16 @@ export class StablecoinService {
     const qrCode = `00020126580014br.gov.bcb.pix...mock-${operationId}`;
 
     this.logger.logStep(4, 'Creating stablecoin record', {
-      status: 'WAITING_PAYMENT',
+      status: StablecoinStatus.WAITING_PAYMENT,
+    });
+
+    // Update stablecoin & operation status to waiting_payment
+    operation.status = OperationStatus.WAITING_PAYMENT;
+    await this.supabaseService.updateStablecoin(operation.stablecoinId, {
+      status: StablecoinStatus.WAITING_PAYMENT,
+    });
+    await this.supabaseService.updateOperation(operationId, {
+      status: OperationStatus.WAITING_PAYMENT,
     });
 
     this.logger.logOperationSuccess('MINT', {
@@ -348,8 +359,13 @@ export class StablecoinService {
         });
 
         // Update status and continue with mint
-        operation.status = 'deposit_confirmed';
+        operation.status = OperationStatus.DEPOSIT_CONFIRMED;
         operation.amountDeposited = totalDeposited;
+
+        await this.supabaseService.updateOperation(operationId, {
+          status: OperationStatus.DEPOSIT_CONFIRMED,
+          amount_deposited: totalDeposited,
+        });
 
         // Unsubscribe from further deposits
         await this.xrplService.unsubscribeFromWallet(operation.tempWalletAddress);
@@ -368,7 +384,7 @@ export class StablecoinService {
 
         // Update status to show partial progress
         await this.supabaseService.updateOperation(operationId, {
-          status: 'partial_deposit_received',
+          status: OperationStatus.PARTIAL_DEPOSIT,
           amount_deposited: totalDeposited,
         });
 
@@ -414,20 +430,20 @@ export class StablecoinService {
       await this.sendWebhook(operation.webhookUrl, 'mint.stablecoin.completed', {
         operationId,
         stablecoinId: operation.stablecoinId,
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         totalDeposited: operation.amountDeposited,
       });
 
       // Update operation to completed with mint tx hash
-      operation.status = 'completed';
+      operation.status = OperationStatus.COMPLETED;
       await this.supabaseService.updateOperation(operationId, {
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         txHash: mintResult.txHash,
       });
 
       this.logger.logOperationSuccess('MINT', {
         operationId,
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         txHash: mintResult.txHash,
         totalDeposited: operation.amountDeposited,
       });
@@ -437,8 +453,8 @@ export class StablecoinService {
       // Cleanup will be triggered by WebSocket ledger listener when 16 ledgers have passed
     } catch (error) {
       this.logger.logOperationError('MINT', error);
-      operation.status = 'failed';
-      await this.supabaseService.updateOperation(operationId, { status: 'failed' });
+      operation.status = OperationStatus.FAILED;
+      await this.supabaseService.updateOperation(operationId, { status: OperationStatus.FAILED });
     }
   }
 
@@ -553,7 +569,7 @@ export class StablecoinService {
       const burnOp = await this.supabaseService.createOperation({
         stablecoinId,
         type: 'BURN',
-        status: 'pending',
+        status: OperationStatus.PENDING,
         amount: amountBrl,
         depositType: returnAsset,
       });
@@ -575,10 +591,10 @@ export class StablecoinService {
       });
 
       // Update operation to completed
-      operation.status = 'completed';
+      operation.status = OperationStatus.COMPLETED;
       operation.amountBurned = amountBrl;
       await this.supabaseService.updateOperation(burnOp.id, {
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         amountBurned: amountBrl,
         txHash: clawbackResult.txHash
       });
@@ -587,20 +603,20 @@ export class StablecoinService {
       await this.sendWebhook(webhookUrl, 'burn.stablecoin.completed', {
         operationId,
         stablecoinId,
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         amountBrlBurned: amountBrl,
       });
 
       this.logger.logOperationSuccess('BURN', {
         operationId,
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         amountBrlBurned: amountBrl,
         amountRlusdReturned: returnAmount.toFixed(6),
       });
 
       return {
         operationId,
-        status: 'completed',
+        status: OperationStatus.COMPLETED,
         amountBrlBurned: amountBrl,
         amountRlusdReturned: returnAmount.toFixed(6),
       };
