@@ -34,50 +34,45 @@ import { FountainSDK } from 'fountain-api-sdk';
 // Initialize SDK
 const fountain = new FountainSDK('http://localhost:3000');
 
-// Login
-const loginResponse = await fountain.login('company-1');
+// Login with email
+const loginResponse = await fountain.login('admin@sonica.com');
 console.log('JWT Token:', loginResponse.jwt);
+console.log('Is Admin:', loginResponse.isAdmin);
 
-// Create stablecoin (Mint)
-const stablecoin = await fountain.createStablecoin({
-  companyId: 'company-1',
-  clientId: 'client-123',
-  companyWallet: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr',
-  clientName: 'Park America Building',
-  currencyCode: 'PABRL',
-  amount: 13000,
-  depositType: 'RLUSD',
-  webhookUrl: 'http://your-domain.com/webhook',
-});
+// Get your operations
+const operations = await fountain.getOperations();
+console.log('Total operations:', operations.length);
 
-console.log('Stablecoin created:', stablecoin.operationId);
-console.log('Deposit wallet:', stablecoin.wallet);
+// Check temporary wallet status for an operation
+const walletStatus = await fountain.getTempWalletStatus(operations[0].id);
+console.log('Wallet balance:', walletStatus.currentBalanceXrp, 'XRP');
+console.log('Deposit progress:', walletStatus.depositProgressPercent, '%');
 
-// Burn stablecoin
-const burn = await fountain.burnStablecoin({
-  stablecoinId: stablecoin.operationId,
-  currencyCode: 'PABRL',
-  amountBrl: 5000,
-  returnAsset: 'RLUSD',
-  webhookUrl: 'http://your-domain.com/webhook',
-});
+// Admin: View global statistics
+if (loginResponse.isAdmin) {
+  const stats = await fountain.getAdminStatistics();
+  console.log('Total companies:', stats.totalCompanies);
+  console.log('Total stablecoins:', stats.totalStablecoins);
 
-console.log('Stablecoin burned:', burn.amountBrlBurned, 'BRL');
+  // Monitor all temporary wallets
+  const tempWallets = await fountain.getAdminTempWallets('pending_deposit');
+  console.log('Pending deposits:', tempWallets.length);
+}
 ```
 
 ## API Methods
 
-### `login(companyId: string): Promise<LoginResponse>`
+### `login(email: string): Promise<LoginResponse>`
 
-Authenticate with the API using company ID.
+Authenticate with the API using your email address.
 
 **Parameters:**
-- `companyId` (string): Your company ID (e.g., 'company-1')
+- `email` (string): Your registered email address (e.g., 'admin@sonica.com')
 
-**Returns:** JWT token valid for 7 days
+**Returns:** JWT token valid for 7 days, company info, and admin status
 
 ```typescript
-const { jwt, company } = await fountain.login('company-1');
+const { jwt, companyId, companyName, isAdmin } = await fountain.login('admin@sonica.com');
 ```
 
 ---
@@ -220,6 +215,142 @@ if (fountain.isAuthenticated()) {
 
 ---
 
+## Client-Facing Operations Methods
+
+### `getOperations(): Promise<OperationDetails[]>`
+
+Get all operations for your company.
+
+```typescript
+const operations = await fountain.getOperations();
+operations.forEach(op => {
+  console.log(`Operation: ${op.id}, Status: ${op.status}`);
+});
+```
+
+---
+
+### `getOperation(operationId: string): Promise<OperationDetails>`
+
+Get details for a specific operation.
+
+```typescript
+const operation = await fountain.getOperation('operation-uuid');
+console.log('Operation status:', operation.status);
+console.log('Deposit history:', operation.depositHistory);
+```
+
+---
+
+### `getTempWalletStatus(operationId: string): Promise<TempWalletStatus>`
+
+Get real-time temporary wallet status including balance and deposit progress.
+
+```typescript
+const walletStatus = await fountain.getTempWalletStatus('operation-uuid');
+console.log('Current balance:', walletStatus.currentBalanceXrp, 'XRP');
+console.log('Progress:', walletStatus.depositProgressPercent, '%');
+console.log('Deposits received:', walletStatus.depositCount);
+```
+
+---
+
+## Admin Methods
+
+### `getAdminStatistics(): Promise<AdminStatistics>`
+
+Get global system statistics (admin only).
+
+```typescript
+if (loginResponse.isAdmin) {
+  const stats = await fountain.getAdminStatistics();
+  console.log('Total companies:', stats.totalCompanies);
+  console.log('Pending operations:', stats.pendingOperations);
+}
+```
+
+---
+
+### `getAdminCompanies(): Promise<any[]>`
+
+Get list of all companies (admin only).
+
+```typescript
+const companies = await fountain.getAdminCompanies();
+```
+
+---
+
+### `getAdminStablecoins(): Promise<any[]>`
+
+Get all stablecoins across all companies (admin only).
+
+```typescript
+const stablecoins = await fountain.getAdminStablecoins();
+```
+
+---
+
+### `getAdminStablecoinByCode(currencyCode: string): Promise<any>`
+
+Get stablecoin details by currency code with operation stats (admin only).
+
+```typescript
+const stablecoin = await fountain.getAdminStablecoinByCode('PABRL');
+console.log('Total operations:', stablecoin.operation_count);
+console.log('Total minted:', stablecoin.total_minted_rlusd);
+```
+
+---
+
+### `getAdminTempWallets(status?: string): Promise<any[]>`
+
+Monitor temporary wallets with real-time balance and progress (admin only).
+
+```typescript
+const pendingWallets = await fountain.getAdminTempWallets('pending_deposit');
+pendingWallets.forEach(wallet => {
+  console.log(`Wallet ${wallet.temp_wallet_address}: ${wallet.current_balance_xrp} XRP`);
+});
+```
+
+---
+
+### `getAdminOperations(filters?: { status?, type?, limit?, offset? }): Promise<OperationDetails[]>`
+
+Get all operations with optional filters (admin only).
+
+```typescript
+const completedMints = await fountain.getAdminOperations({
+  status: 'completed',
+  type: 'MINT',
+  limit: 10,
+  offset: 0,
+});
+```
+
+---
+
+### `getAdminCompanyStablecoins(companyId: string): Promise<any[]>`
+
+Get stablecoins for a specific company (admin only).
+
+```typescript
+const companyStablecoins = await fountain.getAdminCompanyStablecoins('sonica-main');
+```
+
+---
+
+### `getAdminCompanyOperations(companyId: string): Promise<OperationDetails[]>`
+
+Get operations for a specific company (admin only).
+
+```typescript
+const companyOps = await fountain.getAdminCompanyOperations('sonica-main');
+```
+
+---
+
 ## Error Handling
 
 All methods throw errors if the request fails. Handle them with try-catch:
@@ -243,12 +374,13 @@ import { FountainSDK } from 'fountain-api-sdk';
 
 const fountain = new FountainSDK('http://localhost:3000');
 
-// Login
-await fountain.login('company-1');
+// Login with email
+const login = await fountain.login('operator@sonica.com');
+console.log('Logged in as:', login.companyName);
 
 // Create stablecoin
 const stablecoin = await fountain.createStablecoin({
-  companyId: 'company-1',
+  companyId: login.companyId,
   clientId: 'client-123',
   companyWallet: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr',
   clientName: 'My Client',
@@ -259,6 +391,14 @@ const stablecoin = await fountain.createStablecoin({
 });
 
 console.log(`Send ${stablecoin.amountRLUSD} RLUSD to ${stablecoin.wallet}`);
+
+// Monitor deposit progress
+const operation = await fountain.getOperation(stablecoin.operationId);
+console.log(`Deposit status: ${operation.status}`);
+
+// Check temporary wallet status
+const walletStatus = await fountain.getTempWalletStatus(stablecoin.operationId);
+console.log(`Progress: ${walletStatus.depositProgressPercent}%`);
 
 // Later... after deposit confirmed
 
@@ -276,7 +416,45 @@ console.log(`Redeemed ${burn.amountRlusdReturned} RLUSD`);
 
 ---
 
-### Example 2: Manual Token Management
+### Example 2: Admin Dashboard Monitoring
+
+```typescript
+import { FountainSDK } from 'fountain-api-sdk';
+
+const fountain = new FountainSDK('http://localhost:3000');
+
+// Login as admin
+const login = await fountain.login('admin@sonica.com');
+
+if (login.isAdmin) {
+  // Get global statistics
+  const stats = await fountain.getAdminStatistics();
+  console.log('System Overview:');
+  console.log(`- Companies: ${stats.totalCompanies}`);
+  console.log(`- Stablecoins: ${stats.totalStablecoins}`);
+  console.log(`- Operations: ${stats.totalOperations}`);
+  console.log(`- Completed: ${stats.completedOperations}`);
+  console.log(`- Pending: ${stats.pendingOperations}`);
+
+  // Monitor pending deposits
+  const tempWallets = await fountain.getAdminTempWallets('pending_deposit');
+  console.log(`\nWallets waiting for deposits: ${tempWallets.length}`);
+  tempWallets.forEach(wallet => {
+    console.log(`- ${wallet.temp_wallet_address}: ${wallet.deposit_progress_percent}% progress`);
+  });
+
+  // Get completed operations
+  const completed = await fountain.getAdminOperations({
+    status: 'completed',
+    limit: 5,
+  });
+  console.log(`\nRecent completed operations: ${completed.length}`);
+}
+```
+
+---
+
+### Example 3: Manual Token Management
 
 ```typescript
 // Set token from previous session
@@ -284,8 +462,8 @@ fountain.setToken('eyJhbGc...');
 
 // Check if authenticated
 if (fountain.isAuthenticated()) {
-  const stablecoin = await fountain.getStablecoin('stablecoin-id');
-  console.log(stablecoin);
+  const operations = await fountain.getOperations();
+  console.log(`Total operations: ${operations.length}`);
 }
 
 // Logout
@@ -307,8 +485,18 @@ import {
   BurnStablecoinRequest,
   BurnStablecoinResponse,
   StablecoinDetails,
+  OperationDetails,
+  TempWalletStatus,
+  AdminStatistics,
 } from 'fountain-api-sdk';
 ```
+
+### Type Definitions
+
+- **LoginResponse**: Email, companyId, companyName, isAdmin flag, JWT token, expiration
+- **OperationDetails**: Operation ID, type (MINT/BURN), status, amounts, deposit history
+- **TempWalletStatus**: Wallet address, real-time XRP balance, deposit progress %, full deposit history
+- **AdminStatistics**: Total counts for companies, stablecoins, operations, completed/pending stats
 
 ---
 
