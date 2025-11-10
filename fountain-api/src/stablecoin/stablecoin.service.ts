@@ -137,6 +137,18 @@ export class StablecoinService {
     operation.rlusdRequired = rlusdAmount;
     operation.tempWalletAddress = tempWallet.address;
 
+    // Persistir carteira temporária e requisito RLUSD no banco
+    if (this.supabaseService.isConnected()) {
+      await this.supabaseService.updateStablecoin(operation.stablecoinId, {
+        status: 'REQUIRE_DEPOSIT',
+        metadata: {
+          companyId: operation.companyId,
+          tempWalletAddress: tempWallet.address,
+          rlusdRequired: rlusdAmount,
+        },
+      });
+    }
+
     this.logger.logStep(4, 'Starting subscribe for this operation', {
       'LISTEN DEPOSIT ON': tempWallet.address,
     });
