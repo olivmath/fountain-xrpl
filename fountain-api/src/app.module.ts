@@ -7,9 +7,19 @@ import { StablecoinModule } from './stablecoin/stablecoin.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { CustomLogger } from './common/logger.service';
 import { CompaniesModule } from './companies/companies.module';
+import { AdminModule } from './admin/admin.module';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
-  imports: [ConfigModule, AuthModule, SupabaseModule, StablecoinModule, CompaniesModule],
+  imports: [
+    ConfigModule,
+    AuthModule,
+    SupabaseModule,
+    StablecoinModule,
+    CompaniesModule,
+    AdminModule,
+    OperationsModule,
+  ],
   controllers: [AppController],
   providers: [AppService, CustomLogger],
 })
