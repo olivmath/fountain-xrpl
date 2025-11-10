@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { XrplService } from '../xrpl/xrpl.service';
 import { BinanceService } from '../binance/binance.service';
@@ -102,6 +102,12 @@ export class StablecoinService {
       }
     } catch (error) {
       this.logger.logOperationError('MINT', error);
+      // Supabase unique constraint on currency_code
+      if ((error as any)?.code === '23505') {
+        throw new ConflictException(
+          'currencyCode já existe. Use /api/v1/stablecoin/mint para emitir mais, ou escolha um novo currencyCode.',
+        );
+      }
       throw error;
     }
   }
