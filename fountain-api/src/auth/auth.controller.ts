@@ -20,7 +20,7 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        email: { type: 'string', example: 'sonica@tokenizadora.com' },
+        email: { type: 'string', example: 'admin@sonica.com' },
       },
       required: ['email'],
     },

@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS public.allowed_emails (
 -- Seed initial allowed emails
 INSERT INTO public.allowed_emails (email)
 VALUES
-  ('sonica@tokenizadora.com'),
-  ('liqi@tokenizadora.com'),
-  ('abcrypto@tokenizadora.com')
+  ('admin@sonica.com'),
+  ('admin@liqi.com'),
+  ('admin@abcrypto.com')
 ON CONFLICT (email) DO NOTHING;
 
 -- Enable Row Level Security
