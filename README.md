@@ -8,6 +8,11 @@
 > 4. [Merge da wallet temporária](https://testnet.xrpl.org/transactions/387FCC1767940B431ACC27507D8B4FFCB45158C6F2DFAC85B4233E062B63DED0)
 > 5. [Escrow de XRP](https://testnet.xrpl.org/transactions/541FBE41B16698F4F9359BCCAF0630D21D1A0E73ABF6AC961F473F01CAE37536)
 > 6. [Pagamento da stablecoin](https://testnet.xrpl.org/transactions/24DBD2DA1B55E3B67C844D9B5ADEFA93F5D89D58683C95B3807D881F8A98632C)
+>
+> Deploys:
+> 1.[Website](https://fountain-xrpl.vercel.app/)
+> 2.[Docs](https://docs-fountain-xrpl.vercel.app/)
+> 3.[API](https://docs-fountain-xrpl.vercel.app/)
 
 > Infraestrutura de stablecoins BRL na XRP Ledger para tokenizadoras.
 
@@ -79,7 +84,7 @@ fountain-xrpl/
 
 - **Documentação:** https://docs-fountain-xrpl.vercel.app/
 - **Website:** https://fountain-xrpl.vercel.app/
-- **API Swagger:** http://localhost:3000/api/docs (quando rodando localmente)
+- **API Swagger:** https://docs-fountain-xrpl.vercel.app/
 
 ## 🛠️ Desenvolvimento
 
