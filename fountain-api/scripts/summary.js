@@ -4,9 +4,9 @@
 
 const axios = require('axios');
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
-const JWT = process.env.JWT || null;
-const EMAIL = process.env.EMAIL || 'admin@fountain.com';
+const API_URL = '';
+const JWT = '';
+const EMAIL = '';
 
 async function getJwt() {
   if (JWT) return JWT;

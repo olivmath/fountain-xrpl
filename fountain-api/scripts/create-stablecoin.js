@@ -4,18 +4,18 @@
 
 const axios = require('axios');
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
-const JWT = process.env.JWT || null;
-const EMAIL = process.env.EMAIL || 'admin@fountain.com';
+const API_URL = '';
+const JWT = '';
+const EMAIL = '';
 
 // Payload config
-const CLIENT_ID = process.env.CLIENT_ID || 'client-123';
-const COMPANY_WALLET = process.env.COMPANY_WALLET || 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr';
-const CLIENT_NAME = process.env.CLIENT_NAME || 'Test Client';
-const CURRENCY_CODE = process.env.CURRENCY_CODE || 'PABRL';
-const AMOUNT_BRL = parseFloat(process.env.AMOUNT_BRL || '13000');
-const DEPOSIT_TYPE = process.env.DEPOSIT_TYPE || 'RLUSD'; // 'RLUSD' or 'PIX'
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:3000/mock-webhook';
+const CLIENT_ID = '';
+const COMPANY_WALLET = '';
+const CLIENT_NAME = '';
+const CURRENCY_CODE = '';
+const AMOUNT_BRL = '';
+const DEPOSIT_TYPE = '';
+const WEBHOOK_URL = '';
 
 async function getJwt() {
   if (JWT) return JWT;

@@ -4,15 +4,15 @@
 
 const axios = require('axios');
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
-const JWT = process.env.JWT || null;
-const EMAIL = process.env.EMAIL || 'admin@fountain.com';
+const API_URL = '';
+const JWT = '';
+const EMAIL = '';
 
-const STABLECOIN_ID = process.env.STABLECOIN_ID;
-const CURRENCY_CODE = process.env.CURRENCY_CODE || 'PABRL';
-const AMOUNT_BRL = parseFloat(process.env.AMOUNT_BRL || '5000');
-const RETURN_ASSET = process.env.RETURN_ASSET || 'RLUSD'; // 'RLUSD' or 'PIX'
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:3000/mock-webhook';
+const STABLECOIN_ID = '';
+const CURRENCY_CODE = '';
+const AMOUNT_BRL = '';
+const RETURN_ASSET = '';
+const WEBHOOK_URL = '';
 
 async function getJwt() {
   if (JWT) return JWT;

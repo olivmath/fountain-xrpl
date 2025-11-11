@@ -10,16 +10,16 @@
 const axios = require('axios');
 const xrpl = require('xrpl');
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
-const JWT = process.env.JWT || null;
-const EMAIL = process.env.EMAIL || 'admin@fountain.com';
+const API_URL = '';
+const JWT = '';
+const EMAIL = '';
 
-const SOURCE_SECRET = process.env.SOURCE_SEED || process.env.SOURCE_SECRET || '';
-const STABLECOIN_ID = process.env.STABLECOIN_ID || '';
-const DESTINATION_ADDRESS = process.env.DESTINATION_ADDRESS || '';
-const AMOUNT_RLUSD = process.env.AMOUNT_RLUSD || '10';
-const NETWORK_URL = process.env.NETWORK_URL || 'wss://s.altnet.rippletest.net:51233';
-const RLUSD_ISSUER = process.env.RLUSD_ISSUER || 'rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV';
+const SOURCE_SECRET = '';
+const STABLECOIN_ID = '';
+const DESTINATION_ADDRESS = '';
+const AMOUNT_RLUSD = '';
+const NETWORK_URL = '';
+const RLUSD_ISSUER = '';
 
 async function getJwt() {
   if (JWT) return JWT;
@@ -58,7 +58,7 @@ async function sendRlusd(destination) {
   if (!SOURCE_SECRET) throw new Error('Missing SOURCE_SEED');
   const client = new xrpl.Client(NETWORK_URL);
   await client.connect();
-  const wallet = xrpl.Wallet.fromSeed(SOURCE_SECRET);
+  const wallet = xrpl.Wallet.fromSecret(SOURCE_SECRET);
 
   await ensureTrustline(client, wallet);
 

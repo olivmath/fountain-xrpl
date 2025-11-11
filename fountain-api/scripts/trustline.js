@@ -7,10 +7,10 @@
 const xrpl = require('xrpl');
 
 async function main() {
-  const SOURCE_SEED = process.env.SOURCE_SEED || process.env.SOURCE_SECRET;
-  const LIMIT_RLUSD = process.env.LIMIT_RLUSD || '10000';
-  const NETWORK_URL = process.env.NETWORK_URL || 'wss://s.altnet.rippletest.net:51233';
-  const RLUSD_ISSUER = process.env.RLUSD_ISSUER || 'rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV';
+  const SOURCE_SEED = '';
+  const LIMIT_RLUSD = '';
+  const NETWORK_URL = '';
+  const RLUSD_ISSUER = '';
 
   if (!SOURCE_SEED) {
     console.error('Missing SOURCE_SEED');
@@ -19,7 +19,7 @@ async function main() {
 
   const client = new xrpl.Client(NETWORK_URL);
   await client.connect();
-  const wallet = xrpl.Wallet.fromSeed(SOURCE_SEED);
+  const wallet = xrpl.Wallet.fromSecrete(SOURCE_SEED);
 
   const trustSet = {
     TransactionType: 'TrustSet',

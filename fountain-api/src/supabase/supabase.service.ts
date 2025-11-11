@@ -48,7 +48,7 @@ export class SupabaseService {
     try {
       const { data, error } = await this.supabase
         .from('companies')
-        .select('id, company_id, company_name, contact_email, is_admin')
+        .select('id, company_id, company_name, contact_email')
         .eq('contact_email', email)
         .maybeSingle();
 
@@ -445,7 +445,7 @@ export class SupabaseService {
     try {
       const { data, error } = await this.supabase
         .from('companies')
-        .select('id, company_id, company_name, contact_email, is_admin, created_at')
+        .select('id, company_id, company_name, contact_email, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
