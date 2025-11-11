@@ -528,3 +528,212 @@ const xrp = amountBrl / rateXrpBrl;
 - ✅ Receber tokens do cliente via Payment
 - ✅ Verificar saldo via account_lines
 - ✅ Transferir tokens para outros (opcional)
+
+---
+
+## Diagramas Visuais do Fluxo de Mint
+
+### Sequence Diagram: Interação Cliente → API → XRPL
+
+```mermaid
+sequenceDiagram
+    actor Cliente
+    participant API as Fountain API
+    participant XRPL as XRPL Network
+    participant Webhook as Webhook Client
+
+    Cliente->>XRPL: 1. TrustSet (prepara trustline)
+    activate XRPL
+    XRPL-->>Cliente: ✅ Trustline criada
+    deactivate XRPL
+
+    Cliente->>API: 2. POST /api/v1/stablecoin
+    activate API
+    API->>XRPL: Valida trustline
+    API->>XRPL: Cria temp wallet
+    API->>XRPL: Ativa temp wallet (1.3 XRP)
+    API->>API: Registra WebSocket listener
+    API-->>Cliente: 📋 operationId + temp wallet address
+    API->>Webhook: 🔔 AWAITING_DEPOSIT
+    deactivate API
+    activate Webhook
+    Webhook-->>Cliente: ⏳ Aguardando depósito
+    deactivate Webhook
+
+    Cliente->>XRPL: 3. Payment (deposita XRP/RLUSD)
+    activate XRPL
+    XRPL-->>XRPL: ✅ Deposito confirmado
+    deactivate XRPL
+
+    API->>API: 4. WebSocket detecta depósito
+    API->>Webhook: 🔔 DEPOSIT_CONFIRMED
+    activate Webhook
+    Webhook-->>Cliente: 📨 Depósito recebido!
+    deactivate Webhook
+
+    par Background Processing
+        API->>XRPL: 5. AccountDelete (merge + delete temp wallet)
+        API->>XRPL: 6. EscrowCreate (colateral 1:1)
+        API->>XRPL: 7. Payment (mint tokens)
+        XRPL-->>XRPL: ✅ Transactions confirmed
+    end
+
+    API->>Webhook: 🔔 COMPLETED
+    activate Webhook
+    Webhook-->>Cliente: ✅ Stablecoin criada com sucesso!
+    deactivate Webhook
+```
+
+### Flowchart: Decisões e Passos do Processo
+
+```mermaid
+flowchart TD
+    A["👤 Cliente Inicia Mint"] -->|Cria TrustSet| B["✅ Trustline Criada"]
+    B -->|POST /stablecoin| C["🔍 API Valida"]
+    C -->|Trustline existe?| D{Decision}
+    D -->|Não| E["❌ Erro: Crie trustline primeiro"]
+    D -->|Sim| F["⚙️ Gera Temp Wallet"]
+    F -->|Ativa com 1.3 XRP| G["📡 Inicia WebSocket Listener"]
+    G -->|Notifica Cliente| H["🔔 Webhook: AWAITING_DEPOSIT"]
+    H -->|Cliente deposita| I["💰 Payment para Temp Wallet"]
+    I -->|WebSocket detecta| J["✅ Depósito Confirmado"]
+    J -->|Notifica IMEDIATAMENTE| K["🔔 Webhook: DEPOSIT_CONFIRMED"]
+    K -->|Background async| L["⚙️ Merge & Delete Temp Wallet"]
+    L -->|Polling async| M["🔐 EscrowCreate - Colateral 1:1"]
+    M -->|Polling async| N["💎 Payment (Mint Tokens)"]
+    N -->|Polling async| O["💸 Refund Excesso se houver"]
+    O -->|Notifica Final| P["🔔 Webhook: COMPLETED"]
+    P -->|Sucesso| Q["✅ Stablecoin Criada!"]
+    E -->|Erro| R["❌ Operação Falhou"]
+```
+
+### State Diagram: Estados da Operação
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: POST /stablecoin
+
+    PENDING --> AWAITING_DEPOSIT: Valida trustline<br/>Cria temp wallet<br/>Inicia listener
+
+    AWAITING_DEPOSIT --> DEPOSIT_CONFIRMED: WebSocket detecta<br/>depósito mínimo
+
+    DEPOSIT_CONFIRMED --> PROCESSING: Inicia background<br/>Merge + Delete
+
+    PROCESSING --> PROCESSING: EscrowCreate<br/>Mint tokens<br/>Refund excesso
+
+    PROCESSING --> COMPLETED: Todas as TXs<br/>confirmadas
+
+    COMPLETED --> [*]: Cliente recebe tokens
+
+    PENDING --> FAILED: Trustline não existe
+    AWAITING_DEPOSIT --> FAILED: Timeout (10 min)<br/>sem depósito
+    PROCESSING --> FAILED: Erro em qualquer TX
+
+    FAILED --> [*]: Operação cancelada
+```
+
+### Timeline: Duração Esperada de Cada Fase
+
+```mermaid
+timeline
+    title Fluxo de Mint - Timeline Esperada
+
+    section Preparação
+    Cliente cria TrustSet : 10-30s : criação trustline na XRPL
+
+    section API Request
+    Validação : 1-2s : validações e setup
+    Criar Temp Wallet : 5-10s : criação na XRPL
+    Webhook AWAITING : <1s : notificação imediata
+
+    section Depósito
+    Cliente deposita : Variable : depende do cliente
+    WebSocket detecta : <5s : em tempo real
+    Webhook CONFIRMED : <1s : notificação RÁPIDA! ⚡
+
+    section Background Processing
+    Merge/Delete : 10-30s : polling até confirmação
+    Escrow : 10-30s : colateral locked
+    Mint Tokens : 10-30s : payment tx
+    Refund Excesso : 10-30s : se houver
+    Webhook COMPLETED : <1s : notificação final
+
+    section Total
+    Tempo Total : ~1-3 min : depende das TXs XRPL
+```
+
+### Architecture Diagram: Componentes Envolvidos
+
+```mermaid
+graph TB
+    subgraph "Cliente Side"
+        CW["👤 Cliente Wallet"]
+        SDK["📦 Fountain SDK"]
+    end
+
+    subgraph "Fountain API"
+        Controller["🎛️ Stablecoin Controller"]
+        Service["⚙️ Stablecoin Service"]
+        XrplSvc["🔗 XRPL Service"]
+        Logger["📝 Logger"]
+        Validator["✔️ Validator"]
+    end
+
+    subgraph "XRPL Network"
+        Blockchain["⛓️ XRPL Ledger"]
+        IssuerW["💰 Issuer Wallet"]
+        TempW["🔑 Temp Wallet"]
+    end
+
+    subgraph "External"
+        Webhook["🔔 Webhook Receiver"]
+        Binance["📊 Binance API"]
+    end
+
+    CW -->|TrustSet| Blockchain
+    SDK -->|POST /stablecoin| Controller
+    Controller -->|Validar| Validator
+    Controller -->|Process| Service
+    Service -->|Executar TXs| XrplSvc
+    XrplSvc -->|Submit| Blockchain
+    Service -->|Notificar| Webhook
+    Service -->|Cotações| Binance
+    Service -->|Log| Logger
+
+    Blockchain -->|Issuer| IssuerW
+    Blockchain -->|Temp| TempW
+
+    style Controller fill:#e1f5ff
+    style Service fill:#fff3e0
+    style XrplSvc fill:#f3e5f5
+    style Validator fill:#e8f5e9
+    style Logger fill:#fce4ec
+```
+
+---
+
+## Pontos-Chave do Fluxo
+
+### ⚡ Webhook DEPOSIT_CONFIRMED é RÁPIDO (< 1 segundo!)
+- Enviado assim que WebSocket detecta depósito
+- **NÃO espera** merge/delete/escrow/mint
+- Cliente sabe imediatamente que o depósito foi recebido
+
+### 🔄 Processamento em Background (Não-Bloqueante)
+- Merge & Delete: Usa `submit()` + polling async
+- Escrow: Locked por 180 dias
+- Mint: Emite os tokens
+- Tudo acontece em paralelo no background
+
+### ✅ LastLedgerSequence em Tudo
+- Todas as transactions têm janela válida (currentLedger + 100)
+- ~5 minutos de validade
+
+### 🔐 Currency Code Normalizado
+- 3 chars ASCII: USD, BRL, EUR
+- 40 chars HEX: Para códigos customizados (APBRL → hex format)
+
+### 🔔 Três Webhooks Enviados
+1. **AWAITING_DEPOSIT**: Setup concluído, aguardando depósito
+2. **DEPOSIT_CONFIRMED**: Depósito recebido! ⚡ (rápido!)
+3. **COMPLETED**: Tudo finalizado, tokens minted
