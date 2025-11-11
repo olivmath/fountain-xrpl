@@ -25,6 +25,25 @@ INACTIVE             // ❌ NUNCA USADO
 
 ## 🔍 Problemas Identificados
 
+### 0. Distinção Desnecessária entre On-chain e Off-chain
+
+**Problema:**
+```typescript
+REQUIRE_DEPOSIT: 'require_deposit',    // Para XRP/RLUSD
+WAITING_PAYMENT: 'waiting_payment',     // Para Pix
+```
+
+**Por que isso é desnecessário:**
+- Ambos significam "aguardando depósito"
+- A diferença técnica (blockchain vs Pix) já está registrada em `depositType`
+- Criar status diferentes para o mesmo conceito aumenta complexidade sem benefício
+
+**Solução:**
+```typescript
+AWAITING_DEPOSIT: 'awaiting_deposit',  // Para QUALQUER tipo de depósito
+// O campo depositType já indica se é 'XRP', 'RLUSD' ou 'PIX'
+```
+
 ### 1. Duplicação entre Stablecoin e Operation Status
 
 **Status duplicados:**
@@ -87,8 +106,7 @@ export const OperationStatus = {
   PENDING: 'pending',                    // Operação criada
 
   // Estados de aguardo de pagamento
-  REQUIRE_DEPOSIT: 'require_deposit',    // Aguardando depósito on-chain
-  WAITING_PAYMENT: 'waiting_payment',     // Aguardando pagamento Pix
+  AWAITING_DEPOSIT: 'awaiting_deposit',  // Aguardando depósito (on-chain OU off-chain)
 
   // Estados de processamento
   PARTIAL_DEPOSIT: 'partial_deposit',    // Depósito parcial recebido
@@ -100,6 +118,7 @@ export const OperationStatus = {
 } as const;
 
 // REMOVIDO: CANCELLED (nunca usado)
+// UNIFICADO: REQUIRE_DEPOSIT + WAITING_PAYMENT → AWAITING_DEPOSIT
 ```
 
 ### Opção 2: Status Detalhados (Se precisar de mais controle)
@@ -161,21 +180,50 @@ async createStablecoin(...) {
   });
 
   // 3. Processa depósito (atualiza apenas operation.status)
-  if (depositType === 'PIX') {
-    await this.updateOperation(operationId, {
-      status: OperationStatus.WAITING_PAYMENT,
-    });
-  } else {
-    await this.updateOperation(operationId, {
-      status: OperationStatus.REQUIRE_DEPOSIT,
-    });
-  }
+  // Agora UNIFICADO - não importa se é Pix ou on-chain
+  await this.updateOperation(operationId, {
+    status: OperationStatus.AWAITING_DEPOSIT,  // ← Mesmo status para ambos
+  });
 }
 ```
 
-### 3. Migration para limpar status antigos
+### 3. Eliminar condicionais desnecessárias
+
+**Antes (lógica duplicada):**
+```typescript
+// stablecoin.service.ts linhas 109-114
+if (depositType === 'PIX') {
+  return this.createStablecoinPix(operation, operationId);
+}
+// On-chain deposit (XRP or RLUSD) → returns wallet and starts listener
+return this.createStablecoinRlusd(operation, operationId);
+
+// Dentro de cada método:
+operation.status = OperationStatus.WAITING_PAYMENT;  // Para Pix
+operation.status = OperationStatus.REQUIRE_DEPOSIT;   // Para on-chain
+```
+
+**Depois (unificado):**
+```typescript
+// Todos começam com o mesmo status
+operation.status = OperationStatus.AWAITING_DEPOSIT;
+
+// A diferença está apenas na lógica de confirmação do depósito
+if (depositType === 'PIX') {
+  return this.setupPixPayment(operation, operationId);
+} else {
+  return this.setupOnChainDeposit(operation, operationId);
+}
+```
+
+### 4. Migration para limpar status antigos
 
 ```sql
+-- Unifica status de aguardo em operations
+UPDATE public.operations
+SET status = 'awaiting_deposit'
+WHERE status IN ('require_deposit', 'waiting_payment');
+
 -- Remove status não utilizados da tabela stablecoins
 UPDATE public.stablecoins
 SET status = 'active'
@@ -189,23 +237,26 @@ WHERE status IN ('pending_setup', 'require_deposit', 'waiting_payment');
 
 ### Estado Atual
 - **Total de status:** 13 (8 em Operation + 5 em Stablecoin)
-- **Status duplicados:** 2
+- **Status duplicados:** 2 (REQUIRE_DEPOSIT e WAITING_PAYMENT)
 - **Status não usados:** 4
-- **Status realmente necessários:** 7
+- **Status realmente necessários:** 6
 
 ### Depois da Simplificação (Opção 1)
-- **Total de status:** 9 (7 em Operation + 2 em Stablecoin)
+- **Total de status:** 8 (6 em Operation + 2 em Stablecoin)
 - **Status duplicados:** 0
 - **Status não usados:** 0
-- **Redução:** 30% menos status para gerenciar
+- **Status unificados:** 2 (REQUIRE_DEPOSIT + WAITING_PAYMENT → AWAITING_DEPOSIT)
+- **Redução:** 38% menos status para gerenciar
 
 ## 🎯 Benefícios da Simplificação
 
-1. **Menos confusão:** Fica claro que Stablecoin é uma entidade, Operation é um processo
-2. **Menos código:** Remove updates duplicados
-3. **Mais manutenível:** Menos estados para testar e debugar
-4. **Mais correto conceitualmente:** Separa estado de entidade vs estado de processo
-5. **Queries mais simples:** Para saber status de uma operação, consulta apenas operations table
+1. **Unificação de conceitos:** On-chain e off-chain são apenas "aguardando depósito" - o tipo já está em `depositType`
+2. **Menos confusão:** Fica claro que Stablecoin é uma entidade, Operation é um processo
+3. **Menos código:** Remove updates duplicados e condicionais desnecessárias
+4. **Mais manutenível:** Menos estados para testar e debugar
+5. **Mais correto conceitualmente:** Separa estado de entidade vs estado de processo
+6. **Queries mais simples:** Para saber status de uma operação, consulta apenas operations table
+7. **Extensível:** Adicionar novo método de pagamento não requer novo status
 
 ## 🚀 Recomendação Final
 
