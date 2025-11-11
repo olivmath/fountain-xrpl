@@ -1,5 +1,5 @@
 {
-  "name": "fountain-api-sdk",
+  "name": "@olivmath_/fountain-sdk",
   "version": "1.0.0",
   "description": "Official TypeScript/JavaScript SDK for Fountain stablecoin API",
   "main": "dist/fountain-sdk.js",
@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/olivmath/fountain-xrpl.git"
+    "url": "https://github.com/olivmath/fountain-xrpl"
   },
   "homepage": "https://github.com/olivmath/fountain-xrpl#readme",
   "bugs": {
