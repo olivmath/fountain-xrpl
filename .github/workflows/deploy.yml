@@ -17,23 +17,33 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: cd sdks/typescript && npm ci
+        working-directory: sdks/typescript
+        run: npm ci
 
       - name: Build
-        run: cd sdks/typescript && npm run build
+        working-directory: sdks/typescript
+        run: npm run build
 
-      - name: Create .npmrc
+      - name: Configure auth
         run: |
-          mkdir -p ~/.npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-          chmod 600 ~/.npmrc
+          npm config set registry https://registry.npmjs.org
+          npm config get registry
+
+      - name: Verify npm auth
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami || exit 1
 
       - name: Publish to NPM
-        run: cd sdks/typescript && npm publish --access public
+        working-directory: sdks/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish
 
       - name: Success
         run: echo "✅ TypeScript SDK deployed to NPM"
