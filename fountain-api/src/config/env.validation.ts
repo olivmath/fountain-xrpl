@@ -30,6 +30,7 @@ export const validationSchema = Joi.object({
   XRPL_ISSUER_ADDRESS: Joi.string().optional(),
   XRPL_ISSUER_SEED: Joi.string().optional(),
   ENABLE_XRPL_SUBSCRIBER: Joi.string().valid('true', 'false').default('true'),
+  ENABLE_XRPL_POLLING_FALLBACK: Joi.string().valid('true', 'false').default('false'),
 })
   .unknown(true)
   .custom((value, helpers) => {

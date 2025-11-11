@@ -301,26 +301,48 @@ export class StablecoinService {
           }
         });
 
-        // Fallback: polling account balance if event is not delivered
-        let polled = false;
-        const pollInterval = setInterval(async () => {
-          if (polled) return; // avoids multiple confirmations
+        // Optional fallback: continuous polling of account balance for incremental deposits
+        if (this.config.enableXrplPollingFallback) {
+          let previousDeposited = 0;
+          const POLL_EPSILON = 0.000001; // ~1 drop to avoid noise
+          const pollInterval = setInterval(async () => {
           try {
-            const balance = await this.xrplService.getBalance(walletAddress);
-            const deposited = Number(balance) - 1.3; // Subtract activation amount
-
-            if (deposited > 0) {
-              polled = true;
+            // Stop polling if operation already confirmed/completed
+            const current = await this.supabaseService.getOperation(operationId);
+            if (!current || [OperationStatus.DEPOSIT_CONFIRMED, OperationStatus.COMPLETED].includes(current.status)) {
               clearInterval(pollInterval);
-              this.logger.logInfo(`Polling detected deposit: ${deposited} XRP on ${walletAddress}`);
+              return;
+            }
 
-              // Use POLLING as tx hash for polling-detected deposits
-              await this.confirmDeposit(operation, operationId, deposited, 'POLLING', 'UNKNOWN');
+            const balance = await this.xrplService.getBalance(walletAddress);
+            const deposited = Number(balance) - 1.3; // subtract activation reserve
+
+            if (deposited < 0) return;
+            // Initialize previous from DB on first poll if available
+            if (previousDeposited === 0 && typeof current.amount_deposited === 'number') {
+              previousDeposited = current.amount_deposited;
+            }
+
+            const delta = deposited - previousDeposited;
+
+            if (delta > POLL_EPSILON) {
+              const syntheticHash = `POLLING-${Date.now()}-${delta.toFixed(6)}`;
+              this.logger.logInfo(`Polling detected deposit: ${delta} XRP on ${walletAddress}`, {
+                totalDepositedOnChain: deposited.toFixed(6),
+                txHash: syntheticHash,
+              });
+
+              // Accumulate only the new delta amount with a unique synthetic tx hash
+              await this.confirmDeposit(operation, operationId, delta, syntheticHash, 'UNKNOWN');
+              previousDeposited = deposited;
             }
           } catch (err) {
             this.logger.logInfo(`Polling error for ${walletAddress}: ${err?.message || err}`);
           }
-        }, 5000);
+          }, 5000);
+        } else {
+          this.logger.logInfo('Polling fallback disabled; relying on WebSocket only', { walletAddress });
+        }
       } else {
         // Fallback: Simulate deposit after 5 seconds for testing
         setTimeout(async () => {

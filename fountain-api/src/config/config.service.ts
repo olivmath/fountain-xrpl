@@ -81,4 +81,9 @@ export class ConfigService {
     const raw = this.configService.get<string>("ENABLE_XRPL_SUBSCRIBER") || 'true';
     return raw !== 'false';
   }
+
+  get enableXrplPollingFallback(): boolean {
+    const raw = this.configService.get<string>("ENABLE_XRPL_POLLING_FALLBACK") || 'false';
+    return raw === 'true';
+  }
 }
