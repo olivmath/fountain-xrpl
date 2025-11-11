@@ -1,5 +1,13 @@
 # Fountain XRPL
 
+> **Deploys**
+>
+> | Surface       | URL                                                       |
+> | ------------- | --------------------------------------------------------- |
+> | Landing Page  | https://fountain-xrpl.vercel.app/                         |
+> | Documentação  | https://docs-fountain-xrpl.vercel.app/                    |
+> | API Sandbox   | https://api-fountain-xrpl.vercel.app/                     |
+
 > Stablecoin Factory API na XRPL para tokenizadoras brasileiras automatizarem fluxos de mint/burn lastreados em BRL
 
 Fountain unifica backend, SDKs, documentação e website para entregar uma infraestrutura ponta a ponta: tokenizadoras conectam sua operação, fazem KYC/AML uma única vez e automatizam emissões de stablecoin com colateral custodiado on-chain.
