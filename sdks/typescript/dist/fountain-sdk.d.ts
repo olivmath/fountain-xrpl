@@ -15,6 +15,7 @@ export interface LoginResponse {
 export interface CreateStablecoinRequest {
     clientId: string;
     clientName: string;
+    companyWallet: string;
     stablecoinCode: string;
     amountBrl: number;
     depositType: 'XRP' | 'RLUSD' | 'PIX';
@@ -31,8 +32,10 @@ export interface CreateStablecoinResponse {
     issuerAddress?: string;
 }
 export interface PrepareStablecoinRequest {
+    clientAddress: string;
     stablecoinCode: string;
-    amountBrl: number;
+    issuerAddress: string;
+    limit?: string;
 }
 export interface BurnStablecoinRequest {
     stablecoinId: string;
@@ -123,9 +126,12 @@ export declare class FountainSDK {
      */
     private getXRPLClient;
     /**
-     * Prepare stablecoin trustline transaction
-     * @param params - Stablecoin code and amount
-     * @returns Prepared transaction ready to be signed
+     * Prepare stablecoin trustline transaction (wrapper for XRPL TrustSet)
+     * Creates a TrustSet transaction locally and prepares it for signing
+     * Does NOT interact with Fountain API - pure XRPL operation
+     *
+     * @param params - Client address, stablecoin code, issuer address, and optional limit
+     * @returns Prepared transaction ready to be signed by client wallet
      */
     prepareStablecoin(params: PrepareStablecoinRequest): Promise<any>;
     /**

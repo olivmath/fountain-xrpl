@@ -20,6 +20,7 @@ async function main() {
     const createResponse = await fountain.createStablecoin({
       clientId: 'client-123',
       clientName: 'Park America Building',
+      companyWallet: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr',
       stablecoinCode: 'PABRL',
       amountBrl: 13000,
       depositType: 'RLUSD',

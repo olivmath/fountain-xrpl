@@ -21,6 +21,7 @@ export interface LoginResponse {
 export interface CreateStablecoinRequest {
   clientId: string;
   clientName: string;
+  companyWallet: string;
   stablecoinCode: string;
   amountBrl: number;
   depositType: 'XRP' | 'RLUSD' | 'PIX';
@@ -39,8 +40,10 @@ export interface CreateStablecoinResponse {
 }
 
 export interface PrepareStablecoinRequest {
+  clientAddress: string;
   stablecoinCode: string;
-  amountBrl: number;
+  issuerAddress: string;
+  limit?: string;
 }
 
 export interface BurnStablecoinRequest {
@@ -186,18 +189,36 @@ export class FountainSDK {
   }
 
   /**
-   * Prepare stablecoin trustline transaction
-   * @param params - Stablecoin code and amount
-   * @returns Prepared transaction ready to be signed
+   * Prepare stablecoin trustline transaction (wrapper for XRPL TrustSet)
+   * Creates a TrustSet transaction locally and prepares it for signing
+   * Does NOT interact with Fountain API - pure XRPL operation
+   *
+   * @param params - Client address, stablecoin code, issuer address, and optional limit
+   * @returns Prepared transaction ready to be signed by client wallet
    */
   async prepareStablecoin(params: PrepareStablecoinRequest): Promise<any> {
-    // Ensure authenticated
-    await this.getToken();
+    const {
+      clientAddress,
+      stablecoinCode,
+      issuerAddress,
+      limit = '999999999999999',
+    } = params;
 
-    // For now, return a placeholder transaction
-    // This should be implemented based on actual API endpoint
-    // The script shows this should return a transaction object that can be signed
-    throw new Error('prepareStablecoin not yet implemented - API endpoint needed');
+    const client = await this.getXRPLClient();
+
+    const trustSet: any = {
+      TransactionType: 'TrustSet',
+      Account: clientAddress,
+      LimitAmount: {
+        currency: stablecoinCode,
+        issuer: issuerAddress,
+        value: limit,
+      },
+    };
+
+    // Prepare (autofill) the transaction but don't sign it
+    const prepared = await client.autofill(trustSet);
+    return prepared;
   }
 
   /**

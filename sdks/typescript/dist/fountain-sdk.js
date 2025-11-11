@@ -106,17 +106,28 @@ class FountainSDK {
         return this.xrplClient;
     }
     /**
-     * Prepare stablecoin trustline transaction
-     * @param params - Stablecoin code and amount
-     * @returns Prepared transaction ready to be signed
+     * Prepare stablecoin trustline transaction (wrapper for XRPL TrustSet)
+     * Creates a TrustSet transaction locally and prepares it for signing
+     * Does NOT interact with Fountain API - pure XRPL operation
+     *
+     * @param params - Client address, stablecoin code, issuer address, and optional limit
+     * @returns Prepared transaction ready to be signed by client wallet
      */
     async prepareStablecoin(params) {
-        // Ensure authenticated
-        await this.getToken();
-        // For now, return a placeholder transaction
-        // This should be implemented based on actual API endpoint
-        // The script shows this should return a transaction object that can be signed
-        throw new Error('prepareStablecoin not yet implemented - API endpoint needed');
+        const { clientAddress, stablecoinCode, issuerAddress, limit = '999999999999999', } = params;
+        const client = await this.getXRPLClient();
+        const trustSet = {
+            TransactionType: 'TrustSet',
+            Account: clientAddress,
+            LimitAmount: {
+                currency: stablecoinCode,
+                issuer: issuerAddress,
+                value: limit,
+            },
+        };
+        // Prepare (autofill) the transaction but don't sign it
+        const prepared = await client.autofill(trustSet);
+        return prepared;
     }
     /**
      * Submit and wait for XRPL transaction
