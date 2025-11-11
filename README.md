@@ -115,6 +115,7 @@ npm run dev
 ## Arquitetura
 
 ![Image](https://github.com/user-attachments/assets/bed4dcee-0f6c-48c5-81ae-a63687927cba)
+
 ![Image](https://github.com/user-attachments/assets/f8801933-b1b3-449d-b725-c4df20710f5b)
 
 ## Environment Variables
