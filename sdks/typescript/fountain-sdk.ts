@@ -124,6 +124,33 @@ export class FountainSDK {
   private networkUrl: string = 'wss://s.altnet.rippletest.net:51233';
 
   /**
+   * Validate currency code format for XRPL compatibility
+   * @param code - Currency code to validate
+   * @throws Error if code format is invalid
+   */
+  private validateCurrencyCode(code: string): void {
+    if (!code) {
+      throw new Error('❌ Currency code cannot be empty');
+    }
+
+    const isValidLength = code.length === 3 || code.length === 40;
+    const isValidASCII = /^[A-Z0-9]{3}$/.test(code);
+    const isValidHex = /^[A-F0-9]{40}$/.test(code);
+
+    if (isValidLength && (isValidASCII || isValidHex)) {
+      return; // Valid
+    }
+
+    throw new Error(
+      `❌ Invalid currency code: "${code}"\n\n` +
+      `XRPL only accepts:\n` +
+      `  • 3-character ASCII codes (e.g., USD, BRL, EUR, APBRL)\n` +
+      `  • 40-character HEX codes (e.g., 6170627... for custom codes)\n\n` +
+      `You provided: ${code.length} characters`
+    );
+  }
+
+  /**
    * Create a new Fountain SDK instance
    * @param baseURL - Fountain API URL
    * @param email - Company email for authentication
@@ -205,6 +232,9 @@ export class FountainSDK {
       limit = '999999999999999',
     } = params;
 
+    // Validate currency code
+    this.validateCurrencyCode(stablecoinCode);
+
     const client = await this.getXRPLClient();
 
     const trustSet: any = {
@@ -239,6 +269,9 @@ export class FountainSDK {
   async createStablecoin(
     request: CreateStablecoinRequest,
   ): Promise<CreateStablecoinResponse> {
+    // Validate currency code before sending to API
+    this.validateCurrencyCode(request.stablecoinCode);
+
     // Ensure authenticated
     await this.getToken();
 
@@ -383,6 +416,9 @@ export class FountainSDK {
       limit = '999999999999999',
       networkUrl = this.networkUrl,
     } = params;
+
+    // Validate currency code
+    this.validateCurrencyCode(currencyCode);
 
     const client = new xrpl.Client(networkUrl);
 

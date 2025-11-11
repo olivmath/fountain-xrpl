@@ -53,18 +53,6 @@ export class XrplService {
   // Setup global transaction listener (registered once for all subscriptions)
   private setupTransactionListener() {
     this.client.on('transaction', (tx: any) => {
-      // Debug: Log all incoming transaction events with full structure
-      console.log('🔍 [DEBUG] WebSocket event received:', {
-        type: tx.type,
-        engine_result: tx.engine_result,
-        validated: tx.validated,
-        subscribersCount: this.subscribers.size,
-        subscribedAddresses: Array.from(this.subscribers.keys()),
-      });
-
-      // Log the full transaction object to understand its structure
-      console.log('🔍 [DEBUG] Full transaction object:', JSON.stringify(tx, null, 2));
-
       // Check if this is a Payment transaction
       if (
         tx.type === 'transaction' &&
@@ -73,26 +61,17 @@ export class XrplService {
       ) {
         const destinationAddress = tx.transaction.Destination;
 
-        console.log(`📨 Payment transaction detected:`, {
-          destination: destinationAddress,
-          hash: tx.transaction.hash,
-          amount: tx.transaction.Amount,
-        });
+        console.log(`📨 Payment received: ${destinationAddress} | Hash: ${tx.transaction.hash} | Amount: ${tx.transaction.Amount}`);
 
         // Check if we have a subscriber for this destination
         const callback = this.subscribers.get(destinationAddress);
         if (callback) {
-          console.log(`✅ Subscriber found for ${destinationAddress}, executing callback`);
           callback(tx);
-        } else {
-          console.log(`⚠️  No subscriber found for destination: ${destinationAddress}`);
         }
-      } else {
-        console.log('⚠️  Event is not a Payment transaction or missing required fields');
       }
     });
 
-    console.log('👂 Global transaction listener started');
+    console.log('👂 WebSocket listener active');
   }
 
   // Check pending temp wallets and cleanup if they've reached 16 ledgers old
@@ -210,26 +189,9 @@ export class XrplService {
       // Normalize the currency code to match XRPL format
       const normalizedCode = this.normalizeCurrencyCode(currencyCode);
 
-      console.log('🔍 [DEBUG] Checking trust line:', {
-        holderAddress,
-        currencyCode,
-        normalizedCode,
-        issuerAddress: issuerWallet.address,
-        linesCount: lines?.length || 0,
-        lines: lines,
-      });
-
       const hasLine = (lines || []).some(
         (l: any) => l.currency === normalizedCode && l.account === issuerWallet.address,
       );
-
-      console.log('🔍 [DEBUG] Trust line check result:', {
-        hasLine,
-        searchedFor: {
-          currency: normalizedCode,
-          account: issuerWallet.address,
-        },
-      });
 
       if (!hasLine) {
         throw new Error(
@@ -238,12 +200,15 @@ export class XrplService {
         );
       }
 
-      // Mint tokens
+      // Mint tokens (use normalized currency code for XRPL compatibility)
       const tx: xrpl.IssuedCurrencyAmount = {
-        currency: currencyCode,
+        currency: normalizedCode, // Use normalized 40-char hex if needed
         issuer: issuerWallet.address,
         value: amount,
       };
+
+      // Get current ledger for LastLedgerSequence
+      const currentLedger = await this.getCurrentLedgerIndex();
 
       const paymentTx: xrpl.Payment = {
         Account: issuerWallet.address,
@@ -251,6 +216,7 @@ export class XrplService {
         Amount: tx,
         Fee: '12',
         Sequence: await this.getSequence(issuerWallet.address),
+        LastLedgerSequence: currentLedger + 100, // Valid for ~5 minutes
         TransactionType: 'Payment',
       };
 
@@ -339,25 +305,18 @@ export class XrplService {
       // Store the callback in the subscribers map
       this.subscribers.set(walletAddress, callback);
 
-      console.log('🔍 [DEBUG] Subscriber registered:', {
-        walletAddress,
-        totalSubscribers: this.subscribers.size,
-        allSubscribers: Array.from(this.subscribers.keys()),
-      });
-
       // Subscribe to account transactions via XRPL WebSocket
-      const subscribeResponse = await this.client.request({
+      await this.client.request({
         command: 'subscribe',
         accounts: [walletAddress],
       });
 
-      console.log('🔍 [DEBUG] XRPL subscribe response:', subscribeResponse);
-      console.log(`👂 Listening for deposits on ${walletAddress}`);
+      console.log(`👂 Listening for deposits on ${walletAddress.substring(0, 8)}...`);
 
       // Note: Transaction handling is done by the global listener (setupTransactionListener)
       // which was registered once during connect()
     } catch (error) {
-      console.error(`❌ Subscribe error for ${walletAddress}:`, error.message);
+      console.error(`❌ Subscribe error for ${walletAddress.substring(0, 8)}...: ${error.message}`);
     }
   }
 
@@ -477,7 +436,7 @@ export class XrplService {
     }
   }
 
-  // Delete temporary wallet and merge balance to destination
+  // Delete temporary wallet and merge balance to destination (non-blocking)
   async deleteTempWalletAndMerge(
     tempWalletAddress: string,
     tempWalletSeed: string,
@@ -493,17 +452,68 @@ export class XrplService {
         Destination: destinationAddress,
         Fee: '200000', // 0.2 XRP in drops (deleted, not transferred)
         Sequence: await this.getSequence(tempWalletAddress),
-        LastLedgerSequence: currentLedger + 20, // Valid for next 20 ledgers
+        LastLedgerSequence: currentLedger + 100, // Valid for ~5 minutes (100 ledgers)
         TransactionType: 'AccountDelete',
       };
 
       const signed = tempWallet.sign(accountDeleteTx as any);
-      const result = await this.client.submitAndWait(signed.tx_blob as any);
+      // Use submit() instead of submitAndWait() to return immediately
+      // The transaction will be processed asynchronously by XRPL
+      const result = await this.client.submit(signed.tx_blob as any);
 
-      return result.result.hash;
+      const txHash = result.result?.tx_json?.hash || (result.result as any)?.hash || signed.hash;
+
+      // Start background verification (non-blocking)
+      this.verifyTransactionInBackground(txHash, tempWalletAddress, 'DELETE_TEMP_WALLET');
+
+      return txHash;
     } catch (error) {
       throw new Error(`Failed to delete temp wallet: ${error.message}`);
     }
+  }
+
+  // Verify transaction status in background with polling
+  private verifyTransactionInBackground(
+    txHash: string,
+    walletAddress: string,
+    operationType: string,
+  ) {
+    // Run verification in background (fire-and-forget)
+    (async () => {
+      let attempts = 0;
+      const maxAttempts = 20; // 20 attempts = ~60 seconds max
+      const pollInterval = 3000; // 3 second intervals
+
+      while (attempts < maxAttempts) {
+        try {
+          const tx = await this.client.request({
+            command: 'tx',
+            transaction: txHash,
+            binary: false,
+          });
+
+          const txStatus = tx.result;
+
+          // Check if transaction is validated
+          if (txStatus.validated === true) {
+            const result = (txStatus.meta as any)?.TransactionResult || 'UNKNOWN';
+            console.log(`✅ ${operationType} CONFIRMED | Hash: ${txHash} | Result: ${result}`);
+            return; // Success
+          }
+
+          // Not yet validated, wait and retry
+          attempts++;
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        } catch (error) {
+          attempts++;
+          // Transaction might not be in ledger yet, retry
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        }
+      }
+
+      // Max attempts reached
+      console.warn(`⚠️  ${operationType} verification timeout | Hash: ${txHash}`);
+    })();
   }
 
   // Get current ledger index
@@ -534,33 +544,39 @@ export class XrplService {
       const RIPPLE_EPOCH_OFFSET = 946684800;
       const SECONDS_PER_180_DAYS = 180 * 24 * 60 * 60; // 15,552,000 seconds
       const nowInRippleTime = Math.floor(Date.now() / 1000) - RIPPLE_EPOCH_OFFSET;
+      const finishAfterTimestamp = nowInRippleTime; // Can finish immediately
       const cancelAfterTimestamp = nowInRippleTime + SECONDS_PER_180_DAYS;
 
       // Create an Escrow transaction to lock funds in the issuer wallet
       // This acts as collateral backing for the issued tokens
+      const currentLedger = await this.getCurrentLedgerIndex();
       const escrowTx: xrpl.EscrowCreate = {
         Account: issuerWallet.address,
         Destination: issuerWallet.address, // Escrow from issuer to issuer
         Amount: amount, // In XRP drops as calculated collateral
         Fee: '12',
         Sequence: await this.getSequence(issuerWallet.address),
+        LastLedgerSequence: currentLedger + 100, // Valid for ~5 minutes
         TransactionType: 'EscrowCreate',
         DestinationTag: parseInt(currencyCode.charCodeAt(0).toString()) % 1000, // Use currency code to identify escrow
+        FinishAfter: finishAfterTimestamp, // Can finish immediately
         CancelAfter: cancelAfterTimestamp, // Can be cancelled after 180 days if needed
       };
 
       const signed = issuerWallet.sign(escrowTx as any);
       const result = await this.client.submitAndWait(signed.tx_blob as any);
 
-      console.log('🔐 Escrow created for collateral backing (180 days):', {
-        issuer: issuerWallet.address,
-        currency: currencyCode,
-        amount,
-        cancelAfter: new Date((cancelAfterTimestamp + RIPPLE_EPOCH_OFFSET) * 1000).toISOString(),
-        escrowId: result.result.hash,
-      });
+      const escrowHash = result.result.hash;
+      console.log(`
+🔐 ESCROW CREATED (180 DAYS COLLATERAL)
+   ├─ Hash: ${escrowHash}
+   ├─ Currency: ${currencyCode}
+   ├─ Amount: ${amount} drops
+   ├─ Finish After: ${new Date((finishAfterTimestamp + RIPPLE_EPOCH_OFFSET) * 1000).toISOString()}
+   └─ Cancel After: ${new Date((cancelAfterTimestamp + RIPPLE_EPOCH_OFFSET) * 1000).toISOString()}
+`);
 
-      return result.result.hash;
+      return escrowHash;
     } catch (error) {
       throw new Error(`Escrow creation failed: ${error.message}`);
     }

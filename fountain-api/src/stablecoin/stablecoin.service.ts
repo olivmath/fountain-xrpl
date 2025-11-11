@@ -501,11 +501,24 @@ export class StablecoinService {
         // Unsubscribe from further deposits
         await this.xrplService.unsubscribeFromWallet(operation.tempWalletAddress);
 
-        // Step 4: Merge balance to ADMIN Wallet and Delete Temp Wallet
-        await this.mergeAndDeleteTempWallet(operation, operationId);
+        // Step 4: Send webhook notification IMMEDIATELY (deposit confirmed)
+        this.logger.logStep(4, 'Notifying deposit received', {
+          webhookUrl: operation.webhookUrl,
+          totalDeposited,
+        });
 
-        // Step 5: Execute the mint (now with collateral secured)
-        await this.executeMint(operation, operationId);
+        await this.sendWebhook(operation.webhookUrl, 'mint.stablecoin.deposit_confirmed', {
+          operationId,
+          status: 'deposit_confirmed',
+          totalDeposited,
+          timestamp: new Date().toISOString(),
+        }, operation.webhookType);
+
+        // Step 5 onwards: Merge/Delete/Escrow/Mint in background (non-blocking)
+        // Do NOT await - let it run in background while returning success to client
+        this.mergeDeleteEscrowAndMint(operation, operationId).catch((error) => {
+          this.logger.logError('Background processing failed', error);
+        });
       } else {
         // Partial deposit - keep waiting for more
         const stillNeeded = required - totalDeposited;
@@ -533,54 +546,62 @@ export class StablecoinService {
     }
   }
 
-  // Merge deposited balance to ADMIN wallet and delete temp wallet
-  private async mergeAndDeleteTempWallet(operation: any, operationId: string) {
+  // Background processing: Merge/Delete/Escrow/Mint sequence
+  private async mergeDeleteEscrowAndMint(operation: any, operationId: string) {
     try {
-      this.logger.logStep(4, 'Merging balance to ADMIN Wallet and deleting temp wallet');
+      // Step 5: Merge balance to ADMIN Wallet and Delete Temp Wallet
+      await this.mergeAndDeleteTempWallet(operation, operationId);
 
-      // Get current operation to fetch encrypted seed
-      const currentOp = await this.supabaseService.getOperation(operationId);
-      if (!currentOp || !currentOp.temp_wallet_seed_encrypted) {
-        this.logger.logError('Cannot cleanup temp wallet - seed not found', {
-          operationId,
-        });
-        return;
-      }
-
-      // Decrypt the seed
-      const decryptedSeed = this.encryptionService.decrypt(currentOp.temp_wallet_seed_encrypted);
-
-      // Execute AccountDelete transaction (merges balance to ADMIN wallet)
-      const deleteHash = await this.xrplService.deleteTempWalletAndMerge(
-        operation.tempWalletAddress,
-        decryptedSeed,
-        this.xrplService.getIssuerAddress(), // Merge to ADMIN wallet
-      );
-
-      // Update operation with deletion details
-      await this.supabaseService.updateOperation(operationId, {
-        tempWalletDeletedAt: new Date().toISOString(),
-        tempWalletDeleteTxHash: deleteHash,
-      });
-
-      this.logger.logBlockchainTransaction(deleteHash, {
-        type: 'TEMP_WALLET_MERGE_AND_DELETE',
-        mergedTo: this.xrplService.getIssuerAddress(),
-        tempWallet: operation.tempWalletAddress,
-        totalDeposited: operation.amountDeposited,
-      });
-
-      this.logger.logInfo('Temporary wallet successfully merged and deleted', {
-        tempWallet: operation.tempWalletAddress,
-        mergedTo: this.xrplService.getIssuerAddress(),
-        amountMerged: operation.amountDeposited,
-        deleteHash,
-      });
+      // Step 6: Execute the mint (now with collateral secured)
+      await this.executeMint(operation, operationId);
     } catch (error) {
-      this.logger.logError('Failed to merge and delete temp wallet', error);
-      // Do not throw - log the error but continue with mint
-      // The ledger listener will retry cleanup later if needed
+      this.logger.logError('Background processing failed', error);
     }
+  }
+
+  // Merge deposited balance to ADMIN wallet and delete temp wallet (background)
+  private mergeAndDeleteTempWallet(operation: any, operationId: string) {
+    // Fire-and-forget: start in background, don't await
+    // This allows webhook to return immediately
+    (async () => {
+      try {
+        this.logger.logStep(4, 'Submitting temp wallet merge/delete (background)');
+
+        // Get current operation to fetch encrypted seed
+        const currentOp = await this.supabaseService.getOperation(operationId);
+        if (!currentOp || !currentOp.temp_wallet_seed_encrypted) {
+          this.logger.logError('Cannot cleanup temp wallet - seed not found', {
+            operationId,
+          });
+          return;
+        }
+
+        // Decrypt the seed
+        const decryptedSeed = this.encryptionService.decrypt(currentOp.temp_wallet_seed_encrypted);
+
+        // Execute AccountDelete transaction (merges balance to ADMIN wallet, non-blocking)
+        const deleteHash = await this.xrplService.deleteTempWalletAndMerge(
+          operation.tempWalletAddress,
+          decryptedSeed,
+          this.xrplService.getIssuerAddress(), // Merge to ADMIN wallet
+        );
+
+        // Log submission (not confirmation - that happens via polling in background)
+        console.log(`
+📤 TEMP_WALLET_DELETE SUBMITTED
+   ├─ Hash: ${deleteHash}
+   └─ Wallet: ${operation.tempWalletAddress}
+`);
+
+        // Update operation with deletion hash (confirmation happens later via polling)
+        await this.supabaseService.updateOperation(operationId, {
+          tempWalletDeleteTxHash: deleteHash,
+        });
+      } catch (error) {
+        this.logger.logError('Failed to submit temp wallet merge/delete', error);
+        // Do not throw - the background process will retry if needed
+      }
+    })();
   }
 
   // Execute mint after full deposit amount received
@@ -649,10 +670,10 @@ export class StablecoinService {
         txHash: mintResult.txHash,
       });
 
-      // Step 9: Send webhook notification (FINAL STEP - after everything is confirmed)
-      this.logger.logStep(9, 'Sending webhook notification (COMPLETED)', {
+      // Step 8: Send webhook notification (FINAL - after everything complete)
+      this.logger.logStep(8, 'Sending final webhook notification (COMPLETED)', {
         webhookUrl: operation.webhookUrl,
-        operationId,
+        mintTxHash: mintResult.txHash,
       });
 
       await this.sendWebhook(operation.webhookUrl, 'mint.stablecoin.completed', {
@@ -1202,64 +1223,38 @@ export class StablecoinService {
       return response.data;
     } catch (error: any) {
       this.logger.logWebhookDelivery(webhookUrl, eventType, false);
-      console.error('Webhook delivery failed:', error.message);
+
+      // Log detailed webhook error
+      const errorDetails = {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: webhookUrl,
+      };
+
+      console.error(`❌ Webhook failed: ${JSON.stringify(errorDetails, null, 2)}`);
     }
   }
 
-  // Format webhook payload for Discord
+  // Format webhook payload for Discord (single line message)
   private formatDiscordWebhook(eventType: string, data: any): any {
-    const timestamp = new Date().toISOString();
-    const titleMap: { [key: string]: string } = {
-      'mint.stablecoin.awaiting_deposit': '⏳ Awaiting Deposit',
-      'mint.stablecoin.completed': '✅ Mint Completed',
-      'burn.stablecoin.completed': '🔥 Burn Completed',
+    const eventMap: { [key: string]: string } = {
+      'mint.stablecoin.awaiting_deposit': '⏳',
+      'mint.stablecoin.deposit_confirmed': '📨',
+      'mint.stablecoin.completed': '✅',
+      'burn.stablecoin.completed': '🔥',
     };
 
-    const title = titleMap[eventType] || eventType;
-    const colorMap: { [key: string]: number } = {
-      'mint.stablecoin.awaiting_deposit': 0xffa500, // Orange
-      'mint.stablecoin.completed': 0x00ff00, // Green
-      'burn.stablecoin.completed': 0xff0000, // Red
-    };
+    const emoji = eventMap[eventType] || '📌';
+    const status = data.status || 'PROCESSING';
+    const operationId = data.operationId || 'UNKNOWN';
 
-    const color = colorMap[eventType] || 0x0099ff;
-
-    // Build embed fields from data
-    const fields: any[] = [];
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined && value !== null) {
-        fields.push({
-          name: this.formatFieldName(key),
-          value: String(value),
-          inline: true,
-        });
-      }
-    }
+    const message = `${emoji} **${status}** • ${operationId}`;
 
     return {
-      content: '📊 Fountain API Event',
-      embeds: [
-        {
-          title,
-          description: `Event Type: ${eventType}`,
-          fields,
-          color,
-          timestamp,
-          footer: {
-            text: 'Fountain API',
-            icon_url:
-              'https://cdn-icons-png.flaticon.com/512/3556/3556098.png',
-          },
-        },
-      ],
+      content: message,
     };
-  }
-
-  // Helper to format field names (camelCase -> Title Case)
-  private formatFieldName(key: string): string {
-    return key
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, (str) => str.toUpperCase())
-      .trim();
   }
 }

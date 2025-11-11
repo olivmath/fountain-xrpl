@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get, Param, NotFoundException, ForbiddenExcepti
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { StablecoinService } from './stablecoin.service';
 import { CustomLogger } from '../common/logger.service';
+import { ValidationService } from '../common/validation.service';
 import type { Request } from 'express';
 import { CreateStablecoinDto } from './dto/create-stablecoin.dto.js';
 import { MintDto } from './dto/mint.dto.js';
@@ -21,6 +22,7 @@ export class StablecoinController {
   constructor(
     private stablecoinService: StablecoinService,
     private logger: CustomLogger,
+    private validationService: ValidationService,
   ) {}
 
   @Post()
@@ -60,6 +62,9 @@ export class StablecoinController {
     // Suporte a aliases do SDK: stablecoinCode -> currencyCode, amountBrl -> amount
     const currencyCode = body.currencyCode ?? body.stablecoinCode;
     const amount = (body.amount ?? body.amountBrl) as number;
+
+    // Validate currency code format
+    this.validationService.validateCurrencyCode(currencyCode as string);
 
     return await this.stablecoinService.createStablecoin(
       claims.companyId,
