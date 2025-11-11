@@ -1,0 +1,13 @@
+*.ts
+!*.d.ts
+tsconfig.json
+example*.ts
+example*.js
+example*.html
+node_modules/
+src/
+.gitignore
+.git
+.DS_Store
+*.md
+!README.md

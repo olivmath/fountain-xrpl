@@ -20,39 +20,19 @@ export class AuthService {
   async loginByEmail(email: string) {
     const normalized = email.trim().toLowerCase();
 
-    // Master admin override: issue admin token without company lookup
-    if (normalized === 'admin@fountain.com') {
-      const payload = {
-        email: normalized,
-        companyId: 'admin',
-        companyName: 'Admin',
-        isAdmin: true,
-      };
-
-      const existing = await this.supabaseService.getActiveCompanyToken(normalized);
-      if (existing) {
-        return { jwt: existing.token, expires: this.jwtExp };
-      }
-
-      const token = jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExp });
-      const expiresAt = new Date(Date.now() + this.parseExpirationMs(this.jwtExp)).toISOString();
-      await this.supabaseService.saveCompanyToken(normalized, token, expiresAt);
-
-      return { jwt: token, expires: this.jwtExp };
-    }
-
+    // Check if email is allowed
     const allowed = await this.supabaseService.isEmailAllowed(normalized);
     if (!allowed) {
       throw new UnauthorizedException('Email not authorized');
     }
 
-    // Fetch company associated with email
+    // Fetch company associated with email (handles all users including admin@fountain.com)
     const company = await this.supabaseService.getCompanyByEmail(normalized);
     if (!company) {
       throw new UnauthorizedException(`No company found for email: ${normalized}`);
     }
 
-    // Payload includes email, companyId, and admin status
+    // Payload includes email, companyId, and admin status from database
     const payload = {
       email: normalized,
       companyId: company.company_id,
@@ -60,11 +40,13 @@ export class AuthService {
       isAdmin: company.is_admin || false,
     };
 
+    // Check for existing active token to avoid unnecessary JWT generation
     const existing = await this.supabaseService.getActiveCompanyToken(normalized);
     if (existing) {
       return { jwt: existing.token, expires: this.jwtExp };
     }
 
+    // Generate new JWT token
     const token = jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExp });
     const expiresAt = new Date(Date.now() + this.parseExpirationMs(this.jwtExp)).toISOString();
     await this.supabaseService.saveCompanyToken(normalized, token, expiresAt);

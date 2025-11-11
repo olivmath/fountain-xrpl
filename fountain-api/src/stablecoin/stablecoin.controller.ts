@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, NotFoundException, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, NotFoundException, ForbiddenException, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { StablecoinService } from './stablecoin.service';
 import { CustomLogger } from '../common/logger.service';
@@ -146,7 +146,7 @@ export class StablecoinController {
   @Get('/:stablecoinId')
   @ApiOperation({
     summary: 'Get stablecoin details',
-    description: 'Retrieve detailed information about a stablecoin',
+    description: 'Retrieve detailed information about a stablecoin. Companies can only view their own stablecoins; admins can view all.',
   })
   @ApiParam({
     name: 'stablecoinId',
@@ -170,14 +170,29 @@ export class StablecoinController {
     },
   })
   @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Not authorized to view this stablecoin',
+  })
+  @ApiResponse({
     status: 404,
     description: 'Stablecoin not found',
   })
-  async getStablecoin(@Param('stablecoinId') stablecoinId: string) {
-    const stablecoin = this.stablecoinService.getStablecoin(stablecoinId);
+  async getStablecoin(
+    @Req() req: Request,
+    @Param('stablecoinId') stablecoinId: string,
+  ) {
+    const claims = (req as any).claims;
+    const stablecoin = await this.stablecoinService.getStablecoin(stablecoinId);
+
     if (!stablecoin) {
       throw new NotFoundException(`Stablecoin '${stablecoinId}' not found`);
     }
+
+    // Check authorization: admins can view all, companies can only view their own
+    if (!claims.isAdmin && stablecoin.metadata?.companyId !== claims.companyId) {
+      throw new NotFoundException(`Stablecoin '${stablecoinId}' not found`);
+    }
+
     return stablecoin;
   }
 }
