@@ -15,6 +15,7 @@ const {
   STABLECOIN_CODE,
   AMOUNT_BRL,
   WEBHOOK_URL,
+  FOUNTAIN_ADDRESS,
 } = require('./constants');
 
 // setup wallet
@@ -28,9 +29,11 @@ console.log(fountain.getToken());
 const tx = fountain.prepareStablecoin({
   stablecoinCode: STABLECOIN_CODE,
   amountBRL: AMOUNT_BRL,
+  issuerAddress: FOUNTAIN_ADDRESS,
 });
 const txSigned = wallet.sign(tx);
 const result = await fountain.submitAndWait(txSigned.tx_blob);
+console.log(result);
 
 // create stablecoin
 const response = await fountain.createStablecoin({
@@ -41,10 +44,10 @@ const response = await fountain.createStablecoin({
   depositType: 'XRP',
   webhookUrl: WEBHOOK_URL,
 });
-console.log(reponse);
+console.log(response);
 
 // deposit in temp wallet
-deposit(wallet, reponse.wallet, response.amountXRP);
+deposit(wallet, response.wallet, response.amountXRP);
 
 async function deposit(wallet, destination, amount) {
   const client = new xrpl.Client(NETWORK_URL);
