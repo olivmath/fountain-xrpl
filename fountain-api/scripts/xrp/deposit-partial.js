@@ -59,6 +59,7 @@ function toCurrencyHex(code) {
     companyWallet: wallet.address,
     depositType: 'XRP',
     webhookUrl: WEBHOOK_URL,
+    webhookType: require('./constants').WEBHOOK_TYPE,
   });
   console.log(response);
 

@@ -70,6 +70,7 @@ export class StablecoinController {
       amount,
       body.depositType,
       body.webhookUrl,
+      body.webhookType,
     );
   }
 

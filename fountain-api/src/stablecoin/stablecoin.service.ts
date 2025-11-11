@@ -43,6 +43,7 @@ export class StablecoinService {
     amount: number,
     depositType: 'XRP' | 'RLUSD' | 'PIX',
     webhookUrl: string,
+    webhookType: 'discord' | 'raw' = 'raw',
   ) {
     let operationId = uuidv4();
 
@@ -113,6 +114,7 @@ export class StablecoinService {
         depositType,
         companyWallet,
         webhookUrl,
+        webhookType,
         status: OperationStatus.PENDING,
         createdAt: new Date(),
       };
@@ -246,7 +248,7 @@ export class StablecoinService {
       requiredAmount,
       requiredCurrency: operation.depositType,
       createdAt: new Date().toISOString(),
-    });
+    }, operation.webhookType);
 
     if (operation.depositType === 'XRP') {
       this.logger.logOperationSuccess('MINT', {
@@ -661,7 +663,7 @@ export class StablecoinService {
         excessRefunded: operation.excessAmount || 0,
         mintTxHash: mintResult.txHash,
         completedAt: new Date().toISOString(),
-      });
+      }, operation.webhookType);
 
       this.logger.logOperationSuccess('MINT', {
         operationId,
@@ -1172,20 +1174,92 @@ export class StablecoinService {
     }
   }
 
-  // Send webhook notification
-  private async sendWebhook(webhookUrl: string, eventType: string, data: any) {
+  // Send webhook notification with format based on webhookType
+  private async sendWebhook(
+    webhookUrl: string,
+    eventType: string,
+    data: any,
+    webhookType: 'discord' | 'raw' = 'raw',
+  ) {
     try {
-      const response = await axios.post(webhookUrl, {
-        event: eventType,
-        data,
-        timestamp: new Date().toISOString(),
-      });
+      let payload: any;
+
+      if (webhookType === 'discord') {
+        // Format for Discord webhook
+        payload = this.formatDiscordWebhook(eventType, data);
+      } else {
+        // Format for raw/generic webhook
+        payload = {
+          event: eventType,
+          data,
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const response = await axios.post(webhookUrl, payload);
 
       this.logger.logWebhookDelivery(webhookUrl, eventType, response.status === 200);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.logWebhookDelivery(webhookUrl, eventType, false);
       console.error('Webhook delivery failed:', error.message);
     }
+  }
+
+  // Format webhook payload for Discord
+  private formatDiscordWebhook(eventType: string, data: any): any {
+    const timestamp = new Date().toISOString();
+    const titleMap: { [key: string]: string } = {
+      'mint.stablecoin.awaiting_deposit': '⏳ Awaiting Deposit',
+      'mint.stablecoin.completed': '✅ Mint Completed',
+      'burn.stablecoin.completed': '🔥 Burn Completed',
+    };
+
+    const title = titleMap[eventType] || eventType;
+    const colorMap: { [key: string]: number } = {
+      'mint.stablecoin.awaiting_deposit': 0xffa500, // Orange
+      'mint.stablecoin.completed': 0x00ff00, // Green
+      'burn.stablecoin.completed': 0xff0000, // Red
+    };
+
+    const color = colorMap[eventType] || 0x0099ff;
+
+    // Build embed fields from data
+    const fields: any[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined && value !== null) {
+        fields.push({
+          name: this.formatFieldName(key),
+          value: String(value),
+          inline: true,
+        });
+      }
+    }
+
+    return {
+      content: '📊 Fountain API Event',
+      embeds: [
+        {
+          title,
+          description: `Event Type: ${eventType}`,
+          fields,
+          color,
+          timestamp,
+          footer: {
+            text: 'Fountain API',
+            icon_url:
+              'https://cdn-icons-png.flaticon.com/512/3556/3556098.png',
+          },
+        },
+      ],
+    };
+  }
+
+  // Helper to format field names (camelCase -> Title Case)
+  private formatFieldName(key: string): string {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
   }
 }

@@ -212,6 +212,7 @@ export class SupabaseService {
     if (typeof updates.tempWalletDeletedAt !== 'undefined') payload.temp_wallet_deleted_at = updates.tempWalletDeletedAt;
     if (typeof updates.tempWalletDeleteTxHash !== 'undefined') payload.temp_wallet_delete_tx_hash = updates.tempWalletDeleteTxHash;
     if (typeof updates.amount_deposited !== 'undefined') payload.amount_deposited = updates.amount_deposited;
+    if (typeof updates.webhookType !== 'undefined') payload.webhook_type = updates.webhookType;
 
     try {
       const { data, error } = await this.supabase

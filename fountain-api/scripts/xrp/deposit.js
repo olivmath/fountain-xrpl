@@ -46,9 +46,10 @@ const fountain = new FountainSDK(FOUNTAIN_URL, EMAIL);
       companyWallet: wallet.address,
       clientName: CLIENT_NAME,
       stablecoinCode: STABLECOIN_CODE,
-      amount: AMOUNT_BRL,
+      amountBrl: AMOUNT_BRL,
       depositType: 'XRP',
       webhookUrl: WEBHOOK_URL,
+      webhookType: require('./constants').WEBHOOK_TYPE,
     });
     console.log(response);
 

@@ -26,6 +26,7 @@ export interface CreateStablecoinRequest {
   amountBrl: number;
   depositType: 'XRP' | 'RLUSD' | 'PIX';
   webhookUrl: string;
+  webhookType?: 'discord' | 'raw'; // Webhook format type (default: 'raw')
 }
 
 export interface CreateStablecoinResponse {

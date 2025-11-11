@@ -74,4 +74,12 @@ export class CreateStablecoinDto {
     type: String,
   })
   webhookUrl!: string;
+
+  @ApiPropertyOptional({
+    description: 'Webhook type: "discord" formats as Discord embed, "raw" sends JSON structure',
+    enum: ['discord', 'raw'],
+    example: 'raw',
+    default: 'raw',
+  })
+  webhookType?: 'discord' | 'raw';
 }
