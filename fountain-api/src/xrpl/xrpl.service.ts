@@ -330,6 +330,40 @@ export class XrplService {
     }
   }
 
+  // Send payment from a specific wallet (used for refunds)
+  async sendPayment(
+    fromAddress: string,
+    fromSeed: string,
+    toAddress: string,
+    amount: number
+  ): Promise<string> {
+    try {
+      const fromWallet = Wallet.fromSeed(fromSeed);
+      const currentLedger = await this.getCurrentLedgerIndex();
+
+      // Convert amount to drops (1 XRP = 1,000,000 drops)
+      // For RLUSD issued currency, we use the object format
+      const amountDrops = Math.floor(amount * 1000000).toString();
+
+      const paymentTx: xrpl.Payment = {
+        Account: fromAddress,
+        Destination: toAddress,
+        Amount: amountDrops, // XRP in drops
+        Fee: '12',
+        Sequence: await this.getSequence(fromAddress),
+        LastLedgerSequence: currentLedger + 20,
+        TransactionType: 'Payment',
+      };
+
+      const signed = fromWallet.sign(paymentTx as any);
+      const result = await this.client.submitAndWait(signed.tx_blob as any);
+
+      return result.result.hash;
+    } catch (error) {
+      throw new Error(`Failed to send payment: ${error.message}`);
+    }
+  }
+
   // Delete temporary wallet and merge balance to destination
   async deleteTempWalletAndMerge(
     tempWalletAddress: string,

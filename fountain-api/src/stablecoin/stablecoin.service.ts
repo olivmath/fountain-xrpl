@@ -259,13 +259,15 @@ export class StablecoinService {
               : Number(tx.transaction.Amount.value);
 
             const txHash = tx.transaction.hash || 'UNKNOWN';
+            const depositorAddress = tx.transaction.Account || 'UNKNOWN';
 
             this.logger.logInfo(`Real deposit received: ${amount} XRP on ${walletAddress}`, {
               txHash,
+              from: depositorAddress,
             });
 
-            // Pass tx hash for duplicate detection and history tracking
-            await this.confirmDeposit(operation, operationId, amount, txHash);
+            // Pass tx hash and depositor address for duplicate detection and refund tracking
+            await this.confirmDeposit(operation, operationId, amount, txHash, depositorAddress);
           }
         });
 
@@ -283,7 +285,7 @@ export class StablecoinService {
               this.logger.logInfo(`Polling detected deposit: ${deposited} XRP on ${walletAddress}`);
 
               // Use POLLING as tx hash for polling-detected deposits
-              await this.confirmDeposit(operation, operationId, deposited, 'POLLING');
+              await this.confirmDeposit(operation, operationId, deposited, 'POLLING', 'UNKNOWN');
             }
           } catch (err) {
             this.logger.logInfo(`Polling error for ${walletAddress}: ${err?.message || err}`);
@@ -296,7 +298,7 @@ export class StablecoinService {
             this.logger.logInfo(`Simulated deposit on ${walletAddress} (subscriber disabled)`);
 
             // Use SIMULATED as tx hash for simulated deposits
-            await this.confirmDeposit(operation, operationId, operation.rlusdRequired, 'SIMULATED');
+            await this.confirmDeposit(operation, operationId, operation.rlusdRequired, 'SIMULATED', 'UNKNOWN');
           } catch (error) {
             console.error('Deposit subscription error:', error);
           }
@@ -312,7 +314,8 @@ export class StablecoinService {
     operation: any,
     operationId: string,
     amountDeposited: number,
-    txHash: string = 'UNKNOWN'
+    txHash: string = 'UNKNOWN',
+    depositorAddress: string = 'UNKNOWN'
   ) {
     try {
       // Step 1: Check for duplicate deposit (already processed)
@@ -337,7 +340,8 @@ export class StablecoinService {
       const totalDeposited = await this.supabaseService.accumulateDeposit(
         operationId,
         amountDeposited,
-        txHash
+        txHash,
+        depositorAddress
       );
 
       const required = operation.rlusdRequired;
@@ -348,19 +352,24 @@ export class StablecoinService {
         'Total accumulated': totalDeposited.toFixed(6),
         'Required': required.toFixed(6),
         'Progress': `${progress}%`,
+        'From': depositorAddress,
       });
 
       // Step 3: Check if deposit requirement met
       if (totalDeposited >= required) {
         // Requirement fully met - proceed with mint
+        const excess = totalDeposited - required;
+
         this.logger.logValidation('Deposit requirement met', true, {
           accumulated: totalDeposited,
           required,
+          excess: excess > 0 ? excess.toFixed(6) : '0',
         });
 
         // Update status and continue with mint
         operation.status = OperationStatus.DEPOSIT_CONFIRMED;
         operation.amountDeposited = totalDeposited;
+        operation.excessAmount = excess;
 
         await this.supabaseService.updateOperation(operationId, {
           status: OperationStatus.DEPOSIT_CONFIRMED,
@@ -426,12 +435,18 @@ export class StablecoinService {
         'Amount': operation.amount,
       });
 
+      // Step 4.5: Refund excess if any
+      if (operation.excessAmount && operation.excessAmount > 0) {
+        await this.refundExcess(operation, operationId);
+      }
+
       // Step 5: Send webhook notification
       await this.sendWebhook(operation.webhookUrl, 'mint.stablecoin.completed', {
         operationId,
         stablecoinId: operation.stablecoinId,
         status: OperationStatus.COMPLETED,
         totalDeposited: operation.amountDeposited,
+        excessRefunded: operation.excessAmount || 0,
       });
 
       // Update operation to completed with mint tx hash
@@ -455,6 +470,95 @@ export class StablecoinService {
       this.logger.logOperationError('MINT', error);
       operation.status = OperationStatus.FAILED;
       await this.supabaseService.updateOperation(operationId, { status: OperationStatus.FAILED });
+    }
+  }
+
+  // Refund excess deposited amount back to depositors
+  private async refundExcess(operation: any, operationId: string) {
+    try {
+      this.logger.logStep(4.5, 'Refunding excess to depositors', {
+        excessAmount: operation.excessAmount.toFixed(6),
+      });
+
+      // Get deposit history from database
+      const currentOp = await this.supabaseService.getOperation(operationId);
+      if (!currentOp || !currentOp.deposit_history) {
+        this.logger.logWarning('No deposit history found for refund');
+        return;
+      }
+
+      const depositHistory = currentOp.deposit_history as any[];
+      const totalDeposited = operation.amountDeposited;
+      const required = operation.rlusdRequired;
+      const excess = operation.excessAmount;
+
+      // Get temp wallet for sending refunds
+      const tempWalletSeed = this.encryptionService.decrypt(currentOp.temp_wallet_seed_encrypted);
+
+      // Calculate refund for each depositor (proportional to their contribution)
+      const refunds: Array<{ address: string; amount: number; txHash: string }> = [];
+
+      for (const deposit of depositHistory) {
+        if (!deposit.depositorAddress || deposit.depositorAddress === 'UNKNOWN') {
+          this.logger.logWarning('Skipping refund for unknown depositor', {
+            txHash: deposit.txHash,
+          });
+          continue;
+        }
+
+        // Calculate proportional refund
+        const proportion = deposit.amount / totalDeposited;
+        const refundAmount = excess * proportion;
+
+        if (refundAmount < 0.000001) {
+          // Skip dust amounts (less than 1 drop essentially)
+          continue;
+        }
+
+        try {
+          // Send refund from temp wallet
+          const refundTxHash = await this.xrplService.sendPayment(
+            operation.tempWalletAddress,
+            tempWalletSeed,
+            deposit.depositorAddress,
+            refundAmount
+          );
+
+          refunds.push({
+            address: deposit.depositorAddress,
+            amount: refundAmount,
+            txHash: refundTxHash,
+          });
+
+          this.logger.logBlockchainTransaction(refundTxHash, {
+            type: 'EXCESS_REFUND',
+            to: deposit.depositorAddress,
+            amount: refundAmount.toFixed(6),
+            proportion: (proportion * 100).toFixed(2) + '%',
+          });
+        } catch (error) {
+          this.logger.logError('Failed to refund to depositor', {
+            depositor: deposit.depositorAddress,
+            amount: refundAmount,
+            error: error.message,
+          });
+        }
+      }
+
+      // Store refund information in operation
+      await this.supabaseService.updateOperation(operationId, {
+        refundHistory: refunds,
+        excessRefunded: excess,
+      });
+
+      this.logger.logOperationSuccess('REFUND_EXCESS', {
+        operationId,
+        totalRefunded: excess.toFixed(6),
+        refundsCount: refunds.length,
+      });
+    } catch (error) {
+      this.logger.logOperationError('REFUND_EXCESS', error);
+      // Don't throw - refund failure should not stop the mint process
     }
   }
 

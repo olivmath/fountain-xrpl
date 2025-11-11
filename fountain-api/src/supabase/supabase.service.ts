@@ -203,6 +203,8 @@ export class SupabaseService {
     if (typeof updates.amountBurned !== 'undefined') payload.amount_brl = updates.amountBurned;
     if (typeof updates.depositWalletAddress !== 'undefined') payload.deposit_wallet_address = updates.depositWalletAddress;
     if (typeof updates.amountRlusd !== 'undefined') payload.amount_rlusd = updates.amountRlusd;
+    if (typeof updates.refundHistory !== 'undefined') payload.refund_history = updates.refundHistory;
+    if (typeof updates.excessRefunded !== 'undefined') payload.excess_refunded = updates.excessRefunded;
 
     try {
       const { data, error } = await this.supabase
@@ -319,7 +321,8 @@ export class SupabaseService {
   async accumulateDeposit(
     operationId: string,
     depositAmount: number,
-    txHash: string
+    txHash: string,
+    depositorAddress?: string
   ): Promise<number> {
     if (!this.supabase) {
       // Fallback: just return the amount
@@ -344,6 +347,7 @@ export class SupabaseService {
         {
           amount: depositAmount,
           txHash,
+          depositorAddress: depositorAddress || 'UNKNOWN',
           timestamp: new Date().toISOString(),
         },
       ];
