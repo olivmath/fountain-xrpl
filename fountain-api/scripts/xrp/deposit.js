@@ -33,7 +33,11 @@ const fountain = new FountainSDK(FOUNTAIN_URL, EMAIL);
       issuerAddress: FOUNTAIN_ADDRESS,
     });
     const txSigned = wallet.sign(tx);
-    const result = await fountain.submitAndWait(txSigned.tx_blob);
+    // submit via local client to ensure disconnection
+    const trustClient = new xrpl.Client(NETWORK_URL);
+    await trustClient.connect();
+    const result = await trustClient.submitAndWait(txSigned.tx_blob);
+    await trustClient.disconnect();
     console.log(result);
 
     // create stablecoin
@@ -50,6 +54,7 @@ const fountain = new FountainSDK(FOUNTAIN_URL, EMAIL);
 
     // deposit in temp wallet
     await deposit(wallet, response.wallet, response.amountXRP);
+    process.exit(0);
   } catch (err) {
     console.error('Deposit script error:', err);
     process.exit(1);

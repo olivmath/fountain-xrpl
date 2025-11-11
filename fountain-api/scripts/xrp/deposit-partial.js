@@ -43,7 +43,11 @@ function toCurrencyHex(code) {
     issuerAddress: FOUNTAIN_ADDRESS,
   });
   const txSigned = wallet.sign(tx);
-  const trustlineResult = await fountain.submitAndWait(txSigned.tx_blob);
+  // use a local XRPL client to submit and disconnect properly
+  const trustClient = new xrpl.Client(NETWORK_URL);
+  await trustClient.connect();
+  const trustlineResult = await trustClient.submitAndWait(txSigned.tx_blob);
+  await trustClient.disconnect();
   console.log(trustlineResult);
 
   // create stablecoin
@@ -60,21 +64,25 @@ function toCurrencyHex(code) {
 
   // deposit in temp wallet (partial: 50% + 50%)
   await partialDeposit(wallet, response.wallet, response.amountXRP);
+  // ensure process exits after all async operations
+  process.exit(0);
 })().catch((err) => {
   console.error('Partial deposit script failed:', err);
+  process.exit(1);
 });
 
 async function partialDeposit(wallet, destination, amount) {
   const client = new xrpl.Client(NETWORK_URL);
   await client.connect();
-
   const total = Number(amount);
-  for (const amt of [total / 2, total / 2]) {
+  const first = Math.floor((total / 2) * 1e6) / 1e6;
+  const second = Number((total - first).toFixed(6));
+  for (const amt of [first, second]) {
     const payment = {
       TransactionType: 'Payment',
       Account: wallet.address,
       Destination: destination,
-      Amount: xrpl.xrpToDrops(amt),
+      Amount: xrpl.xrpToDrops(amt.toFixed(6)),
     };
     
     const prepared = await client.autofill(payment);
