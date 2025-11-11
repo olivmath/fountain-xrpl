@@ -53,16 +53,17 @@ export class XrplService {
   // Setup global transaction listener (registered once for all subscriptions)
   private setupTransactionListener() {
     this.client.on('transaction', (tx: any) => {
-      // Debug: Log all incoming transaction events
-      console.log('🔍 [DEBUG] WebSocket transaction event received:', {
+      // Debug: Log all incoming transaction events with full structure
+      console.log('🔍 [DEBUG] WebSocket event received:', {
         type: tx.type,
         engine_result: tx.engine_result,
         validated: tx.validated,
-        transactionType: tx.transaction?.TransactionType,
-        destination: tx.transaction?.Destination,
         subscribersCount: this.subscribers.size,
         subscribedAddresses: Array.from(this.subscribers.keys()),
       });
+
+      // Log the full transaction object to understand its structure
+      console.log('🔍 [DEBUG] Full transaction object:', JSON.stringify(tx, null, 2));
 
       // Check if this is a Payment transaction
       if (
@@ -72,14 +73,22 @@ export class XrplService {
       ) {
         const destinationAddress = tx.transaction.Destination;
 
+        console.log(`📨 Payment transaction detected:`, {
+          destination: destinationAddress,
+          hash: tx.transaction.hash,
+          amount: tx.transaction.Amount,
+        });
+
         // Check if we have a subscriber for this destination
         const callback = this.subscribers.get(destinationAddress);
         if (callback) {
-          console.log(`📨 Transaction detected for ${destinationAddress}: ${tx.transaction.hash}`);
+          console.log(`✅ Subscriber found for ${destinationAddress}, executing callback`);
           callback(tx);
         } else {
           console.log(`⚠️  No subscriber found for destination: ${destinationAddress}`);
         }
+      } else {
+        console.log('⚠️  Event is not a Payment transaction or missing required fields');
       }
     });
 
@@ -150,9 +159,27 @@ export class XrplService {
     try {
       // Check holder's trust line to the issuer
       const lines = await this.getAccountLines(holderAddress);
+
+      console.log('🔍 [DEBUG] Checking trust line:', {
+        holderAddress,
+        currencyCode,
+        issuerAddress: issuerWallet.address,
+        linesCount: lines?.length || 0,
+        lines: lines,
+      });
+
       const hasLine = (lines || []).some(
-        (l: any) => l.currency === currencyCode && l.issuer === issuerWallet.address,
+        (l: any) => l.currency === currencyCode && l.account === issuerWallet.address,
       );
+
+      console.log('🔍 [DEBUG] Trust line check result:', {
+        hasLine,
+        searchedFor: {
+          currency: currencyCode,
+          account: issuerWallet.address,
+        },
+      });
+
       if (!hasLine) {
         throw new Error(
           `Trust line missing for ${currencyCode} with issuer ${issuerWallet.address}. ` +
