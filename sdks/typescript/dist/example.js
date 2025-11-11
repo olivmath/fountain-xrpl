@@ -5,23 +5,22 @@ const fountain_sdk_1 = require("./fountain-sdk");
  * Example usage of Fountain SDK
  */
 async function main() {
-    // Initialize SDK
-    const fountain = new fountain_sdk_1.FountainSDK('http://localhost:3000');
+    // Initialize SDK (auto-login with email)
+    const fountain = new fountain_sdk_1.FountainSDK('http://localhost:3000', 'company-1');
     try {
-        // Step 1: Login
-        console.log('📝 Logging in...');
-        const loginResponse = await fountain.login('company-1');
-        console.log('✅ Login successful:', loginResponse.companyName);
-        console.log('🔐 JWT Token:', loginResponse.jwt.substring(0, 20) + '...');
+        // Step 1: Get token (auto-login)
+        console.log('📝 Getting authentication token...');
+        const token = await fountain.getToken();
+        console.log('✅ Authenticated');
+        console.log('🔐 JWT Token:', token.substring(0, 20) + '...');
         // Step 2: Create stablecoin (Mint)
         console.log('\n🪙 Creating stablecoin...');
         const createResponse = await fountain.createStablecoin({
-            companyId: 'company-1',
             clientId: 'client-123',
-            companyWallet: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr',
             clientName: 'Park America Building',
-            currencyCode: 'PABRL',
-            amount: 13000,
+            companyWallet: 'rN7n7otQDd6FczFgLdcqpHnZc5LiMvMPAr',
+            stablecoinCode: 'PABRL',
+            amountBrl: 13000,
             depositType: 'RLUSD',
             webhookUrl: 'http://your-domain.com/webhook',
         });
