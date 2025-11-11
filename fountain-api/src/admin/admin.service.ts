@@ -37,23 +37,25 @@ export class AdminService {
     const enriched = await Promise.all(
       wallets.map(async (wallet: any) => {
         try {
-          const balance = await this.xrplService.getBalance(wallet.temp_wallet_address);
-          const progress = wallet.rlusd_required
-            ? ((wallet.amount_deposited || 0) / wallet.rlusd_required * 100).toFixed(2)
+          const balance = await this.xrplService.getBalance(wallet.deposit_wallet_address);
+          const progress = wallet.amount_rlusd
+            ? ((wallet.amount_deposited || 0) / wallet.amount_rlusd * 100).toFixed(2)
             : '0.00';
 
           return {
             ...wallet,
+            temp_wallet_address: wallet.deposit_wallet_address,
             current_balance_xrp: balance,
             deposit_progress_percent: progress,
           };
         } catch (error: any) {
           this.logger.logValidation('temp_wallet_balance', false, {
-            wallet: wallet.temp_wallet_address,
+            wallet: wallet.deposit_wallet_address,
             error: error.message,
           });
           return {
             ...wallet,
+            temp_wallet_address: wallet.deposit_wallet_address,
             current_balance_xrp: 'N/A',
             deposit_progress_percent: '0.00',
           };
@@ -94,7 +96,7 @@ export class AdminService {
     const operations = await this.supabaseService.getOperationsByStablecoinIds([stablecoin.id]);
 
     const completedOps = operations.filter((op: any) => op.status === 'completed');
-    const totalMinted = completedOps.reduce((sum: number, op: any) => sum + (Number(op.rlusd_required) || 0), 0);
+    const totalMinted = completedOps.reduce((sum: number, op: any) => sum + (Number(op.amount_rlusd) || 0), 0);
 
     return {
       ...stablecoin,

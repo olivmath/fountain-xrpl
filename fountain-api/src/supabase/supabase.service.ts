@@ -536,7 +536,7 @@ export class SupabaseService {
       let query = this.supabase
         .from('operations')
         .select('*')
-        .not('temp_wallet_address', 'is', null);
+        .not('deposit_wallet_address', 'is', null);
 
       if (status) {
         query = query.eq('status', status);

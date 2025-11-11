@@ -46,7 +46,7 @@ export class OperationsService {
       }
     }
 
-    if (!operation.temp_wallet_address) {
+    if (!operation.deposit_wallet_address) {
       return {
         operationId,
         message: 'No temporary wallet for this operation (likely burn or off-chain deposit)',
@@ -54,17 +54,17 @@ export class OperationsService {
     }
 
     try {
-      const balance = await this.xrplService.getBalance(operation.temp_wallet_address);
-      const progress = operation.rlusd_required
-        ? ((operation.amount_deposited || 0) / operation.rlusd_required * 100).toFixed(2)
+      const balance = await this.xrplService.getBalance(operation.deposit_wallet_address);
+      const progress = operation.amount_rlusd
+        ? ((operation.amount_deposited || 0) / operation.amount_rlusd * 100).toFixed(2)
         : '0.00';
 
       return {
         operationId,
-        temp_wallet_address: operation.temp_wallet_address,
+        temp_wallet_address: operation.deposit_wallet_address,
         current_balance_xrp: balance,
         deposit_progress_percent: progress,
-        amount_required_rlusd: operation.rlusd_required,
+        amount_required_rlusd: operation.amount_rlusd,
         amount_deposited_rlusd: operation.amount_deposited || 0,
         deposit_count: operation.deposit_count || 0,
         deposit_history: operation.deposit_history || [],
@@ -75,16 +75,16 @@ export class OperationsService {
       };
     } catch (error: any) {
       this.logger.logValidation('temp_wallet_status', false, {
-        wallet: operation.temp_wallet_address,
+        wallet: operation.deposit_wallet_address,
         error: error.message,
       });
 
       return {
         operationId,
-        temp_wallet_address: operation.temp_wallet_address,
+        temp_wallet_address: operation.deposit_wallet_address,
         current_balance_xrp: 'N/A (fetch failed)',
-        deposit_progress_percent: ((operation.amount_deposited || 0) / (operation.rlusd_required || 1) * 100).toFixed(2),
-        amount_required_rlusd: operation.rlusd_required,
+        deposit_progress_percent: ((operation.amount_deposited || 0) / (operation.amount_rlusd || 1) * 100).toFixed(2),
+        amount_required_rlusd: operation.amount_rlusd,
         amount_deposited_rlusd: operation.amount_deposited || 0,
         deposit_count: operation.deposit_count || 0,
         deposit_history: operation.deposit_history || [],
