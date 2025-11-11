@@ -1,5 +1,14 @@
 # Fountain XRPL
 
+> **Transações XRPL (Testnet)**
+>
+> 1. [Trustline do cliente](https://testnet.xrpl.org/transactions/273461EEF2C70CD9770480BA886378E74D24E3E61A145F747F2DA8BD1A5A00CE)
+> 2. [Ativação da wallet temporária](https://testnet.xrpl.org/transactions/A825828A8850B1988468D37A14C91D94BB32C74F646A0D6F63B9EB83F57C8060)
+> 3. [Depósito de XRP](https://testnet.xrpl.org/transactions/82EAD44F7B7EFDD6CE4530C2FCADC41001F8BBACECF9261FA32BEF28C37470BD)
+> 4. [Merge da wallet temporária](https://testnet.xrpl.org/transactions/387FCC1767940B431ACC27507D8B4FFCB45158C6F2DFAC85B4233E062B63DED0)
+> 5. [Escrow de XRP](https://testnet.xrpl.org/transactions/541FBE41B16698F4F9359BCCAF0630D21D1A0E73ABF6AC961F473F01CAE37536)
+> 6. [Pagamento da stablecoin](https://testnet.xrpl.org/transactions/24DBD2DA1B55E3B67C844D9B5ADEFA93F5D89D58683C95B3807D881F8A98632C)
+
 > Infraestrutura de stablecoins BRL na XRP Ledger para tokenizadoras.
 
 Fountain é uma plataforma B2B para tokenizadoras automatizarem a emissão, gestão e liquidação de stablecoins lastreadas em BRL, construída sobre a XRP Ledger (XRPL).
