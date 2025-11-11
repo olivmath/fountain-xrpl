@@ -7,6 +7,12 @@ export function Web3HeroAnimated() {
   const pillars = [92, 84, 78, 70, 62, 54, 46, 34, 18, 34, 46, 54, 62, 70, 78, 84, 92]
 
   const [isMounted, setIsMounted] = useState(false)
+  const navLinks = [
+    { label: "Solução", href: "#solucao" },
+    { label: "Como Funciona", href: "#como-funciona" },
+    { label: "Roadmap", href: "#roadmap" },
+    { label: "Documentação", href: "https://docs-fountain-xrpl.vercel.app/", external: true },
+  ]
 
   useEffect(() => {
     const timer = setTimeout(() => setIsMounted(true), 100)
@@ -86,18 +92,28 @@ export function Web3HeroAnimated() {
             </div>
 
             <nav className="hidden items-center gap-8 text-sm/6 text-white/80 md:flex">
-              {["Solução", "Como Funciona", "Roadmap", "Documentação"].map((i) => (
-                <a key={i} className="hover:text-white transition" href="#">
-                  {i}
+              {navLinks.map((link) => (
+                <a
+                  key={link.label}
+                  className="transition hover:text-white"
+                  href={link.href}
+                  target={link.external ? "_blank" : undefined}
+                  rel={link.external ? "noopener noreferrer" : undefined}
+                >
+                  {link.label}
                 </a>
               ))}
             </nav>
 
             <div className="hidden items-center gap-3 md:flex">
-              <button className="rounded-full px-4 py-2 text-sm text-[#B3B3B3] transition hover:text-white">Conectar</button>
-              <button className="rounded-full bg-gradient-to-r from-[#6372BF] to-[#2C1E49] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:shadow-lg hover:shadow-[#6372BF]/40">
-                Solicitar Acesso
-              </button>
+              <a
+                href="http://18.217.104.138:3000/api/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full px-4 py-2 text-sm text-[#B3B3B3] transition hover:text-white"
+              >
+                Acessar API
+              </a>
             </div>
 
             <button className="md:hidden rounded-full bg-white/10 px-3 py-2 text-sm text-white/80">Menu</button>
@@ -127,13 +143,17 @@ export function Web3HeroAnimated() {
               className={`mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row ${isMounted ? "animate-fadeInUp" : "opacity-0"}`}
             >
               <a
-                href="#"
+                href="http://18.217.104.138:3000/api/docs"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#6372BF] to-[#2C1E49] px-6 py-3 text-sm font-semibold text-white shadow transition hover:shadow-lg hover:shadow-[#6372BF]/40"
               >
-                Começar Agora
+                Acessar API
               </a>
               <a
                 href="https://docs-fountain-xrpl.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/80 backdrop-blur hover:border-white/40 hover:text-white"
               >
                 Ver Documentação

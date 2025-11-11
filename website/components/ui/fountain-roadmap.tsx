@@ -32,7 +32,7 @@ const roadmapItems: RoadmapItem[] = [
 
 export function RoadmapSection() {
   return (
-    <section className="relative overflow-hidden bg-black px-6 py-20 text-white md:py-32">
+    <section id="roadmap" className="relative overflow-hidden bg-black px-6 py-20 text-white md:py-32">
       <div
         aria-hidden
         className="absolute inset-0 -z-10"

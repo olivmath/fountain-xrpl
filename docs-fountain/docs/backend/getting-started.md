@@ -133,10 +133,10 @@ fountain-api/
 
 ## Próximos passos
 
-1. **Configure Supabase** - Siga o guia em [Infraestrutura](./infraestrutura.md)
-2. **Entenda os fluxos** - Leia [Fluxos Completos](./flows.md)
-3. **Integre via SDK** - Veja [SDKs](../sdks/visao-geral.md)
-4. **Deploy** - Consulte [Deployment](../guides/deploying.md)
+1. **Configure Supabase** - Siga o guia em [Infraestrutura](https://docs-fountain-xrpl.vercel.app/docs/backend/infraestrutura)
+2. **Entenda os fluxos** - Leia [Fluxos Completos](https://docs-fountain-xrpl.vercel.app/docs/backend/flows)
+3. **Integre via SDK** - Veja [SDKs](https://docs-fountain-xrpl.vercel.app/docs/sdks/overview)
+4. **Deploy** - Consulte [Deployment](https://docs-fountain-xrpl.vercel.app/docs/guides/deploying)
 
 ## Troubleshooting
 
@@ -199,5 +199,5 @@ SOURCE_SEED=snYourSeed STABLECOIN_ID=uuid AMOUNT_RLUSD=10 \
 ## Suporte
 
 - **Swagger UI**: http://localhost:3000/api/docs
-- **Logs**: Veja [Logging](../reference/logging.md)
-- **Troubleshooting**: [Guia de solução de problemas](../guides/troubleshooting.md)
+- **Documentação completa:** https://docs-fountain-xrpl.vercel.app/
+- **Contato:** support@fountain.app

@@ -23,7 +23,7 @@ const FeatureList: FeatureItem[] = [
         produção.
       </>
     ),
-    href: '/docs/fountain-api',
+    href: 'https://docs-fountain-xrpl.vercel.app/docs/backend/getting-started',
     cta: 'Ver visão geral da API',
   },
   {
@@ -34,7 +34,7 @@ const FeatureList: FeatureItem[] = [
         Utilize a XRPL para mint, burn e distribuição audível de stablecoins, transações rápidas e integração nativa com ecossistema cripto global.
       </>
     ),
-    href: '/docs/api/infraestrutura#xrpl-service-srcxrplxrplservicets',
+    href: 'https://docs-fountain-xrpl.vercel.app/docs/backend/infraestrutura#xrpl-service',
     cta: 'Saber mais sobre XRPL',
   },
   {
@@ -46,7 +46,7 @@ const FeatureList: FeatureItem[] = [
         reconciliações.
       </>
     ),
-    href: '/docs/api/operations',
+    href: 'https://docs-fountain-xrpl.vercel.app/docs/backend/operations',
     cta: 'Ver monitoramento de operações',
   },
 ];
