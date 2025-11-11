@@ -2,7 +2,14 @@ import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 
-@ApiTags('admin')
+/**
+ * Admin Controller
+ *
+ * Protected admin endpoints for system monitoring and auditing.
+ * All endpoints require JWT with isAdmin: true (admin@fountain.com only).
+ * Returns system-wide data including all companies, stablecoins, and operations.
+ */
+@ApiTags('👑 Admin')
 @ApiBearerAuth()
 @Controller('api/v1/admin')
 export class AdminController {

@@ -7,7 +7,14 @@ import { CreateStablecoinDto } from './dto/create-stablecoin.dto.js';
 import { MintDto } from './dto/mint.dto.js';
 import { BurnDto } from './dto/burn.dto.js';
 
-@ApiTags('Stablecoin')
+/**
+ * Stablecoin Controller
+ *
+ * Handles all stablecoin operations (mint, burn, get details).
+ * All endpoints require valid JWT authentication.
+ * Companies can only operate on their own stablecoins.
+ */
+@ApiTags('💰 Stablecoins')
 @ApiBearerAuth()
 @Controller('api/v1/stablecoin')
 export class StablecoinController {

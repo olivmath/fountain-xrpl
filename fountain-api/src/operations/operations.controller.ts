@@ -2,7 +2,14 @@ import { Controller, Get, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { OperationsService } from './operations.service';
 
-@ApiTags('operations')
+/**
+ * Operations Controller
+ *
+ * Handles retrieval of operation status and temporary wallet information.
+ * All endpoints require valid JWT authentication.
+ * Companies can only view their own operations.
+ */
+@ApiTags('📊 Operations')
 @ApiBearerAuth()
 @Controller('api/v1/operations')
 export class OperationsController {
