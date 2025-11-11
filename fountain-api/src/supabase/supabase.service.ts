@@ -205,6 +205,13 @@ export class SupabaseService {
     if (typeof updates.amountRlusd !== 'undefined') payload.amount_rlusd = updates.amountRlusd;
     if (typeof updates.refundHistory !== 'undefined') payload.refund_history = updates.refundHistory;
     if (typeof updates.excessRefunded !== 'undefined') payload.excess_refunded = updates.excessRefunded;
+    if (typeof updates.tempWalletSeedEncrypted !== 'undefined') payload.temp_wallet_seed_encrypted = updates.tempWalletSeedEncrypted;
+    if (typeof updates.tempWalletCreationLedger !== 'undefined') payload.temp_wallet_creation_ledger = updates.tempWalletCreationLedger;
+    if (typeof updates.tempWalletActivationTxHash !== 'undefined') payload.temp_wallet_activation_tx_hash = updates.tempWalletActivationTxHash;
+    if (typeof updates.tempWalletActivatedAt !== 'undefined') payload.temp_wallet_activated_at = updates.tempWalletActivatedAt;
+    if (typeof updates.tempWalletDeletedAt !== 'undefined') payload.temp_wallet_deleted_at = updates.tempWalletDeletedAt;
+    if (typeof updates.tempWalletDeleteTxHash !== 'undefined') payload.temp_wallet_delete_tx_hash = updates.tempWalletDeleteTxHash;
+    if (typeof updates.amount_deposited !== 'undefined') payload.amount_deposited = updates.amount_deposited;
 
     try {
       const { data, error } = await this.supabase

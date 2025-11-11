@@ -148,6 +148,19 @@ export class XrplService {
     return this.issuerAddress;
   }
 
+  // Normalize currency code to XRPL format
+  // Standard 3-char codes stay as-is (USD, XRP, etc)
+  // Longer codes are converted to 40-char hex format (lucas -> 6C756373...)
+  private normalizeCurrencyCode(code: string): string {
+    if (!code || code.length === 3) {
+      return code; // Standard 3-char codes or empty
+    }
+
+    // Convert to hex and pad to 40 chars
+    const hex = Buffer.from(code, 'ascii').toString('hex').toUpperCase();
+    return (hex + '0'.repeat(40 - hex.length)).slice(0, 40);
+  }
+
   // Validate that holder has a trust line with the issuer for a specific currency
   async validateTrustLine(
     holderAddress: string,
@@ -158,8 +171,11 @@ export class XrplService {
       const issuer = issuerAddress || this.issuerAddress;
       const lines = await this.getAccountLines(holderAddress);
 
+      // Normalize the currency code to match XRPL format
+      const normalizedCode = this.normalizeCurrencyCode(currencyCode);
+
       const hasLine = (lines || []).some(
-        (l: any) => l.currency === currencyCode && l.account === issuer,
+        (l: any) => l.currency === normalizedCode && l.account === issuer,
       );
 
       if (!hasLine) {
@@ -191,29 +207,33 @@ export class XrplService {
       // Check holder's trust line to the issuer
       const lines = await this.getAccountLines(holderAddress);
 
+      // Normalize the currency code to match XRPL format
+      const normalizedCode = this.normalizeCurrencyCode(currencyCode);
+
       console.log('🔍 [DEBUG] Checking trust line:', {
         holderAddress,
         currencyCode,
+        normalizedCode,
         issuerAddress: issuerWallet.address,
         linesCount: lines?.length || 0,
         lines: lines,
       });
 
       const hasLine = (lines || []).some(
-        (l: any) => l.currency === currencyCode && l.account === issuerWallet.address,
+        (l: any) => l.currency === normalizedCode && l.account === issuerWallet.address,
       );
 
       console.log('🔍 [DEBUG] Trust line check result:', {
         hasLine,
         searchedFor: {
-          currency: currencyCode,
+          currency: normalizedCode,
           account: issuerWallet.address,
         },
       });
 
       if (!hasLine) {
         throw new Error(
-          `Trust line missing for ${currencyCode} with issuer ${issuerWallet.address}. ` +
+          `Trust line missing for ${currencyCode} (${normalizedCode}) with issuer ${issuerWallet.address}. ` +
           `The holder (${holderAddress}) must send a TrustSet with LimitAmount >= ${amount}.`,
         );
       }
@@ -501,6 +521,7 @@ export class XrplService {
 
   // Create an Escrow for collateral (1:1 reserve on ADMIN wallet)
   // This ensures collateral backing before minting tokens
+  // Escrow locked for 180 days as collateral reserve
   async createEscrow(
     issuerWallet: Wallet,
     holderAddress: string,
@@ -508,25 +529,34 @@ export class XrplService {
     amount: string,
   ): Promise<string> {
     try {
+      // Calculate CancelAfter timestamp (Ripple epoch: seconds since Jan 1, 2000)
+      // Standard Unix epoch is Jan 1, 1970, so add 946684800 seconds offset
+      const RIPPLE_EPOCH_OFFSET = 946684800;
+      const SECONDS_PER_180_DAYS = 180 * 24 * 60 * 60; // 15,552,000 seconds
+      const nowInRippleTime = Math.floor(Date.now() / 1000) - RIPPLE_EPOCH_OFFSET;
+      const cancelAfterTimestamp = nowInRippleTime + SECONDS_PER_180_DAYS;
+
       // Create an Escrow transaction to lock funds in the issuer wallet
       // This acts as collateral backing for the issued tokens
       const escrowTx: xrpl.EscrowCreate = {
         Account: issuerWallet.address,
         Destination: issuerWallet.address, // Escrow from issuer to issuer
-        Amount: amount, // In XRP drops or as calculated collateral
+        Amount: amount, // In XRP drops as calculated collateral
         Fee: '12',
         Sequence: await this.getSequence(issuerWallet.address),
         TransactionType: 'EscrowCreate',
         DestinationTag: parseInt(currencyCode.charCodeAt(0).toString()) % 1000, // Use currency code to identify escrow
+        CancelAfter: cancelAfterTimestamp, // Can be cancelled after 180 days if needed
       };
 
       const signed = issuerWallet.sign(escrowTx as any);
       const result = await this.client.submitAndWait(signed.tx_blob as any);
 
-      console.log('🔐 Escrow created for collateral backing:', {
+      console.log('🔐 Escrow created for collateral backing (180 days):', {
         issuer: issuerWallet.address,
         currency: currencyCode,
         amount,
+        cancelAfter: new Date((cancelAfterTimestamp + RIPPLE_EPOCH_OFFSET) * 1000).toISOString(),
         escrowId: result.result.hash,
       });
 
