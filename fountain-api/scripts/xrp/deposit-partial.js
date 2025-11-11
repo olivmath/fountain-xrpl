@@ -21,33 +21,48 @@ const {
 // setup wallet
 const wallet = xrpl.Wallet.fromSecret(CLIENT_SECRET);
 
-// sdk login
-const fountain = new FountainSDK(FOUNTAIN_URL, EMAIL);
-console.log(await fountain.getToken());
+// helper to convert 4+ char currency codes to XRPL 160-bit hex
+function toCurrencyHex(code) {
+  if (!code || code.length <= 3) return code;
+  const bytes = Buffer.from(code, 'ascii');
+  const padded = Buffer.concat([bytes, Buffer.alloc(20 - bytes.length, 0)]);
+  return padded.toString('hex').toUpperCase();
+}
 
-// create Trustline
-const tx = await fountain.prepareStablecoin({
-  stablecoinCode: STABLECOIN_CODE,
-  amountBRL: AMOUNT_BRL,
-  issuerAddress: FOUNTAIN_ADDRESS,
+// run main flow without top-level await
+(async () => {
+  // sdk login
+  const fountain = new FountainSDK(FOUNTAIN_URL, EMAIL);
+  console.log(await fountain.getToken());
+
+  // create Trustline
+  const currencyHex = toCurrencyHex(STABLECOIN_CODE);
+  const tx = await fountain.prepareStablecoin({
+    clientAddress: wallet.address,
+    stablecoinCode: currencyHex,
+    issuerAddress: FOUNTAIN_ADDRESS,
+  });
+  const txSigned = wallet.sign(tx);
+  const trustlineResult = await fountain.submitAndWait(txSigned.tx_blob);
+  console.log(trustlineResult);
+
+  // create stablecoin
+  const response = await fountain.createStablecoin({
+    amountBrl: AMOUNT_BRL,
+    clientId: CLIENT_ID,
+    clientName: CLIENT_NAME,
+    stablecoinCode: STABLECOIN_CODE,
+    companyWallet: wallet.address,
+    depositType: 'XRP',
+    webhookUrl: WEBHOOK_URL,
+  });
+  console.log(response);
+
+  // deposit in temp wallet (partial: 50% + 50%)
+  await partialDeposit(wallet, response.wallet, response.amountXRP);
+})().catch((err) => {
+  console.error('Partial deposit script failed:', err);
 });
-const txSigned = wallet.sign(tx);
-const trustlineResult = await fountain.submitAndWait(txSigned.tx_blob);
-console.log(trustlineResult);
-
-// create stablecoin
-const response = await fountain.createStablecoin({
-  amountBRL: AMOUNT_BRL,
-  clientId: CLIENT_ID,
-  clientName: CLIENT_NAME,
-  stablecoinCode: STABLECOIN_CODE,
-  depositType: 'XRP',
-  webhookUrl: WEBHOOK_URL,
-});
-console.log(response);
-
-// deposit in temp wallet
-await partialDeposit(wallet, response.wallet, response.amountXRP);
 
 async function partialDeposit(wallet, destination, amount) {
   const client = new xrpl.Client(NETWORK_URL);
