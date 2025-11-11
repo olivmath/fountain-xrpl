@@ -15,6 +15,7 @@ const {
   STABLECOIN_CODE,
   AMOUNT_BRL,
   WEBHOOK_URL,
+  WEBHOOK_TYPE,
   FOUNTAIN_ADDRESS,
 } = require('./constants');
 
@@ -59,7 +60,7 @@ function toCurrencyHex(code) {
     companyWallet: wallet.address,
     depositType: 'XRP',
     webhookUrl: WEBHOOK_URL,
-    webhookType: require('./constants').WEBHOOK_TYPE,
+    webhookType: WEBHOOK_TYPE,
   });
   console.log(response);
 
@@ -85,13 +86,14 @@ async function partialDeposit(wallet, destination, amount) {
       Destination: destination,
       Amount: xrpl.xrpToDrops(amt.toFixed(6)),
     };
-    
+
     const prepared = await client.autofill(payment);
     const signed = wallet.sign(prepared);
     const result = await client.submitAndWait(signed.tx_blob);
-    
+
     console.log('Tx hash:', result.result?.hash);
-    console.log('Payment result:',
+    console.log(
+      'Payment result:',
       result.result?.meta?.TransactionResult || result.result?.engine_result,
     );
   }

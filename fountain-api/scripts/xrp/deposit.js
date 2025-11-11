@@ -16,6 +16,7 @@ const {
   AMOUNT_BRL,
   WEBHOOK_URL,
   FOUNTAIN_ADDRESS,
+  WEBHOOK_TYPE,
 } = require('./constants');
 
 // setup wallet
@@ -49,7 +50,7 @@ const fountain = new FountainSDK(FOUNTAIN_URL, EMAIL);
       amountBrl: AMOUNT_BRL,
       depositType: 'XRP',
       webhookUrl: WEBHOOK_URL,
-      webhookType: require('./constants').WEBHOOK_TYPE,
+      webhookType: WEBHOOK_TYPE,
     });
     console.log(response);
 
