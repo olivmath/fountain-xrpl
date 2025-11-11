@@ -36,6 +36,7 @@ export interface CreateStablecoinResponse {
   wallet?: string;
   qrCode?: string;
   amountBrl?: number;
+  issuerAddress?: string;
 }
 
 export interface BurnStablecoinRequest {
