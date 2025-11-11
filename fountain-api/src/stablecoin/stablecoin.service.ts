@@ -405,8 +405,9 @@ export class StablecoinService {
         'From': depositorAddress,
       });
 
-      // Step 3: Check if deposit requirement met
-      if (totalDeposited >= required) {
+      // Step 3: Check if deposit requirement met (allow small XRPL fee tolerance)
+      const EPSILON = 0.00005; // ~50 drops tolerance for network fees
+      if (totalDeposited + EPSILON >= required) {
         // Requirement fully met - proceed with mint
         const excess = totalDeposited - required;
 
