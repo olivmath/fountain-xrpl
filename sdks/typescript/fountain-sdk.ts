@@ -25,7 +25,7 @@ export interface CreateStablecoinRequest {
   clientName: string;
   currencyCode: string;
   amount: number;
-  depositType: 'RLUSD' | 'PIX';
+  depositType: 'XRP' | 'RLUSD' | 'PIX';
   webhookUrl: string;
 }
 
@@ -169,7 +169,7 @@ export class FountainSDK {
     stablecoinId: string;
     companyWallet: string;
     amount: number;
-    depositType: 'RLUSD' | 'PIX';
+    depositType: 'XRP' | 'RLUSD' | 'PIX';
     webhookUrl: string;
   }): Promise<CreateStablecoinResponse> {
     try {
@@ -246,6 +246,76 @@ export class FountainSDK {
    */
   isAuthenticated(): boolean {
     return this.jwtToken !== null;
+  }
+
+  // ===== XRPL Trustline Management =====
+
+  /**
+   * Create a trustline from client wallet to Fountain issuer
+   * This must be called before minting tokens to establish trust relationship
+   *
+   * @param clientSeed - The secret seed of the client wallet (starts with 's')
+   * @param currencyCode - The currency code for the stablecoin (e.g., 'APBRL')
+   * @param limit - The maximum amount to trust (default: '999999999999999')
+   * @param networkUrl - XRPL network URL (default: 'wss://s.altnet.rippletest.net:51233')
+   * @param issuerAddress - Fountain issuer address (from API response or known)
+   * @returns Transaction result with hash and status
+   */
+  async createTrustline(params: {
+    clientSeed: string;
+    currencyCode: string;
+    issuerAddress: string;
+    limit?: string;
+    networkUrl?: string;
+  }): Promise<{
+    success: boolean;
+    txHash: string;
+    result: string;
+    walletAddress: string;
+  }> {
+    const xrpl = require('xrpl');
+    const {
+      clientSeed,
+      currencyCode,
+      issuerAddress,
+      limit = '999999999999999',
+      networkUrl = 'wss://s.altnet.rippletest.net:51233',
+    } = params;
+
+    const client = new xrpl.Client(networkUrl);
+
+    try {
+      await client.connect();
+      const wallet = xrpl.Wallet.fromSeed(clientSeed);
+
+      const trustSet = {
+        TransactionType: 'TrustSet',
+        Account: wallet.address,
+        LimitAmount: {
+          currency: currencyCode,
+          issuer: issuerAddress,
+          value: limit,
+        },
+      };
+
+      const prepared = await client.autofill(trustSet);
+      const signed = wallet.sign(prepared);
+      const result = await client.submitAndWait(signed.tx_blob);
+
+      const txResult = result.result?.meta?.TransactionResult || result.result?.engine_result;
+      const txHash = result.result?.hash;
+
+      return {
+        success: txResult === 'tesSUCCESS',
+        txHash: txHash || '',
+        result: txResult || 'UNKNOWN',
+        walletAddress: wallet.address,
+      };
+    } catch (error: any) {
+      throw new Error(`Create trustline failed: ${error.message}`);
+    } finally {
+      await client.disconnect();
+    }
   }
 
   // ===== Operations Endpoints (Client-facing) =====
