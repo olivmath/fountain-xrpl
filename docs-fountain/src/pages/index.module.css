@@ -1,0 +1,115 @@
+.hero {
+  position: relative;
+  padding: 6rem 0 5rem;
+  overflow: hidden;
+}
+
+.heroGlow {
+  position: absolute;
+  inset: -30% -20% auto -20%;
+  height: 100%;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 60% at 10% 20%, rgba(242, 91, 75, 0.25) 0%, transparent 60%),
+    radial-gradient(65% 65% at 80% 10%, rgba(90, 107, 255, 0.25) 0%, transparent 70%);
+  filter: blur(20px);
+  opacity: 0.9;
+}
+
+.heroContent {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+  z-index: 1;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(247, 248, 255, 0.85);
+}
+
+.title {
+  margin-top: 1.75rem;
+  font-size: clamp(2.8rem, 5vw, 3.5rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--brand-foreground);
+  text-wrap: balance;
+}
+
+.subtitle {
+  margin-top: 1.25rem;
+  font-size: 1.15rem;
+  line-height: 1.8;
+  color: rgba(230, 234, 255, 0.8);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2.5rem;
+}
+
+.primaryAction {
+  background: linear-gradient(135deg, #f25b4b 0%, #ff725f 45%, #6a7bff 100%);
+  border: none;
+  color: #05060f;
+  font-weight: 600;
+  padding: 0.85rem 1.95rem;
+  border-radius: 999px;
+  box-shadow: 0 16px 40px rgba(242, 91, 75, 0.25);
+}
+
+.primaryAction:hover {
+  color: #040406;
+  transform: translateY(-1px);
+}
+
+.secondaryAction {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(245, 247, 255, 0.9);
+  background: rgba(15, 17, 32, 0.6);
+  padding: 0.85rem 1.95rem;
+  font-weight: 500;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.secondaryAction:hover {
+  background: rgba(15, 17, 32, 0.85);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: var(--brand-foreground);
+  transform: translateY(-1px);
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+}
+
+@media screen and (max-width: 996px) {
+  .hero {
+    padding: 4rem 0 3.5rem;
+  }
+
+  .title {
+    font-size: clamp(2.4rem, 8vw, 3rem);
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+}

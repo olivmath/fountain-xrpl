@@ -1,0 +1,162 @@
+.features {
+  position: relative;
+  padding: 5rem 0 6rem;
+  background: radial-gradient(circle at 50% 0%, rgba(90, 107, 255, 0.14) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(5, 6, 15, 0.92) 0%, rgba(4, 5, 11, 1) 100%);
+  overflow: hidden;
+}
+
+.features::after {
+  content: '';
+  position: absolute;
+  inset: auto -20% -40% -20%;
+  height: 60%;
+  background: radial-gradient(70% 70% at 50% 0%, rgba(242, 91, 75, 0.16), transparent 65%);
+  pointer-events: none;
+}
+
+.featuresContainer {
+  position: relative;
+  z-index: 1;
+}
+
+.featuresHeader {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 3.5rem;
+}
+
+.featuresBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(90, 107, 255, 0.12);
+  color: rgba(232, 234, 255, 0.85);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.featuresTitle {
+  margin-top: 1.5rem;
+  font-size: clamp(2.1rem, 4vw, 2.8rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--brand-foreground);
+}
+
+.featuresSubtitle {
+  margin-top: 1rem;
+  color: rgba(225, 229, 255, 0.75);
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+
+.grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.card {
+  position: relative;
+  padding: 2.5rem 2.25rem;
+  border-radius: 1.3rem;
+  background: rgba(14, 16, 32, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 26px 50px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow: hidden;
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 60%;
+  background: radial-gradient(70% 70% at 20% 15%, rgba(90, 107, 255, 0.2), transparent 70%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 42px 60px rgba(4, 6, 16, 0.55);
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+.cardEyebrow {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(230, 234, 255, 0.6);
+}
+
+.cardTitle {
+  font-size: 1.7rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--brand-foreground);
+}
+
+.cardDescription {
+  flex: 1;
+  margin: 0;
+  color: rgba(221, 225, 255, 0.76);
+  line-height: 1.75;
+}
+
+.cardCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  font-weight: 600;
+  color: var(--brand-foreground);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: gap 200ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.card:hover .cardCta {
+  gap: 0.6rem;
+  border-bottom-color: rgba(255, 255, 255, 0.4);
+}
+
+.cardCtaIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 1.05rem;
+}
+
+@media screen and (max-width: 996px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 2.1rem 2rem;
+  }
+
+  .features {
+    padding: 4rem 0 4.5rem;
+  }
+}
