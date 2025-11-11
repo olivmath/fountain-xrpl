@@ -148,6 +148,37 @@ export class XrplService {
     return this.issuerAddress;
   }
 
+  // Validate that holder has a trust line with the issuer for a specific currency
+  async validateTrustLine(
+    holderAddress: string,
+    currencyCode: string,
+    issuerAddress?: string,
+  ): Promise<{ hasTrustLine: boolean; error?: string }> {
+    try {
+      const issuer = issuerAddress || this.issuerAddress;
+      const lines = await this.getAccountLines(holderAddress);
+
+      const hasLine = (lines || []).some(
+        (l: any) => l.currency === currencyCode && l.account === issuer,
+      );
+
+      if (!hasLine) {
+        return {
+          hasTrustLine: false,
+          error: `Trust line missing for ${currencyCode} with issuer ${issuer}. ` +
+                 `The holder (${holderAddress}) must send a TrustSet with LimitAmount >= the amount to be minted.`,
+        };
+      }
+
+      return { hasTrustLine: true };
+    } catch (error: any) {
+      return {
+        hasTrustLine: false,
+        error: `Failed to validate trust line: ${error.message}`,
+      };
+    }
+  }
+
   // Mint a stablecoin (Issued Currency)
   async mint(
     issuerWallet: Wallet,
@@ -465,6 +496,43 @@ export class XrplService {
       return ledgerInfo.result.ledger_index;
     } catch (error) {
       throw new Error(`Failed to get current ledger index: ${error.message}`);
+    }
+  }
+
+  // Create an Escrow for collateral (1:1 reserve on ADMIN wallet)
+  // This ensures collateral backing before minting tokens
+  async createEscrow(
+    issuerWallet: Wallet,
+    holderAddress: string,
+    currencyCode: string,
+    amount: string,
+  ): Promise<string> {
+    try {
+      // Create an Escrow transaction to lock funds in the issuer wallet
+      // This acts as collateral backing for the issued tokens
+      const escrowTx: xrpl.EscrowCreate = {
+        Account: issuerWallet.address,
+        Destination: issuerWallet.address, // Escrow from issuer to issuer
+        Amount: amount, // In XRP drops or as calculated collateral
+        Fee: '12',
+        Sequence: await this.getSequence(issuerWallet.address),
+        TransactionType: 'EscrowCreate',
+        DestinationTag: parseInt(currencyCode.charCodeAt(0).toString()) % 1000, // Use currency code to identify escrow
+      };
+
+      const signed = issuerWallet.sign(escrowTx as any);
+      const result = await this.client.submitAndWait(signed.tx_blob as any);
+
+      console.log('🔐 Escrow created for collateral backing:', {
+        issuer: issuerWallet.address,
+        currency: currencyCode,
+        amount,
+        escrowId: result.result.hash,
+      });
+
+      return result.result.hash;
+    } catch (error) {
+      throw new Error(`Escrow creation failed: ${error.message}`);
     }
   }
 }

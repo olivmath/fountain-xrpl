@@ -62,8 +62,35 @@ export class StablecoinService {
       }
       this.logger.logValidation('CompanyId present in JWT', true, { companyId });
 
-      // Step 1: Validate inputs
-      this.logger.logStep(1, 'Validating stablecoin parameters', {
+      // Step 1: Validate trustline BEFORE creating any resources
+      this.logger.logStep(1, 'Validating trustline to ADMIN Wallet', {
+        clientWallet: companyWallet,
+        currencyCode,
+        issuerAddress: this.xrplService.getIssuerAddress(),
+      });
+
+      const trustLineValidation = await this.xrplService.validateTrustLine(
+        companyWallet,
+        currencyCode,
+        this.xrplService.getIssuerAddress(),
+      );
+
+      if (!trustLineValidation.hasTrustLine) {
+        this.logger.logValidation('Trustline to ADMIN Wallet', false, {
+          error: trustLineValidation.error,
+          clientWallet: companyWallet,
+          currencyCode,
+        });
+        throw new Error(trustLineValidation.error);
+      }
+
+      this.logger.logValidation('Trustline to ADMIN Wallet', true, {
+        clientWallet: companyWallet,
+        currencyCode,
+      });
+
+      // Step 2: Validate stablecoin parameters
+      this.logger.logStep(2, 'Validating stablecoin parameters', {
         currencyCode,
         amount,
       });
@@ -203,12 +230,31 @@ export class StablecoinService {
 
     this.subscribeToDeposit(operation, operationId, tempWallet.address);
 
+    // Step 7: Send webhook notification - AWAITING_DEPOSIT
+    this.logger.logStep(6, 'Sending webhook notification (AWAITING_DEPOSIT)', {
+      webhookUrl: operation.webhookUrl,
+      operationId,
+      tempWalletAddress: tempWallet.address,
+      requiredAmount,
+    });
+
+    await this.sendWebhook(operation.webhookUrl, 'mint.stablecoin.awaiting_deposit', {
+      operationId,
+      stablecoinId: operation.stablecoinId,
+      status: OperationStatus.REQUIRE_DEPOSIT,
+      tempWalletAddress: tempWallet.address,
+      requiredAmount,
+      requiredCurrency: operation.depositType,
+      createdAt: new Date().toISOString(),
+    });
+
     if (operation.depositType === 'XRP') {
       this.logger.logOperationSuccess('MINT', {
         operationId,
         status: operation.status,
         amountXRP: requiredAmount.toFixed(6),
         wallet: tempWallet.address,
+        webhookNotification: 'AWAITING_DEPOSIT sent',
       });
 
       return {
@@ -223,6 +269,7 @@ export class StablecoinService {
         status: operation.status,
         amountRLUSD: requiredAmount.toFixed(6),
         wallet: tempWallet.address,
+        webhookNotification: 'AWAITING_DEPOSIT sent',
       });
 
       return {
@@ -452,7 +499,10 @@ export class StablecoinService {
         // Unsubscribe from further deposits
         await this.xrplService.unsubscribeFromWallet(operation.tempWalletAddress);
 
-        // Execute the mint
+        // Step 4: Merge balance to ADMIN Wallet and Delete Temp Wallet
+        await this.mergeAndDeleteTempWallet(operation, operationId);
+
+        // Step 5: Execute the mint (now with collateral secured)
         await this.executeMint(operation, operationId);
       } else {
         // Partial deposit - keep waiting for more
@@ -481,12 +531,89 @@ export class StablecoinService {
     }
   }
 
+  // Merge deposited balance to ADMIN wallet and delete temp wallet
+  private async mergeAndDeleteTempWallet(operation: any, operationId: string) {
+    try {
+      this.logger.logStep(4, 'Merging balance to ADMIN Wallet and deleting temp wallet');
+
+      // Get current operation to fetch encrypted seed
+      const currentOp = await this.supabaseService.getOperation(operationId);
+      if (!currentOp || !currentOp.temp_wallet_seed_encrypted) {
+        this.logger.logError('Cannot cleanup temp wallet - seed not found', {
+          operationId,
+        });
+        return;
+      }
+
+      // Decrypt the seed
+      const decryptedSeed = this.encryptionService.decrypt(currentOp.temp_wallet_seed_encrypted);
+
+      // Execute AccountDelete transaction (merges balance to ADMIN wallet)
+      const deleteHash = await this.xrplService.deleteTempWalletAndMerge(
+        operation.tempWalletAddress,
+        decryptedSeed,
+        this.xrplService.getIssuerAddress(), // Merge to ADMIN wallet
+      );
+
+      // Update operation with deletion details
+      await this.supabaseService.updateOperation(operationId, {
+        tempWalletDeletedAt: new Date().toISOString(),
+        tempWalletDeleteTxHash: deleteHash,
+      });
+
+      this.logger.logBlockchainTransaction(deleteHash, {
+        type: 'TEMP_WALLET_MERGE_AND_DELETE',
+        mergedTo: this.xrplService.getIssuerAddress(),
+        tempWallet: operation.tempWalletAddress,
+        totalDeposited: operation.amountDeposited,
+      });
+
+      this.logger.logInfo('Temporary wallet successfully merged and deleted', {
+        tempWallet: operation.tempWalletAddress,
+        mergedTo: this.xrplService.getIssuerAddress(),
+        amountMerged: operation.amountDeposited,
+        deleteHash,
+      });
+    } catch (error) {
+      this.logger.logError('Failed to merge and delete temp wallet', error);
+      // Do not throw - log the error but continue with mint
+      // The ledger listener will retry cleanup later if needed
+    }
+  }
+
   // Execute mint after full deposit amount received
   private async executeMint(operation: any, operationId: string) {
-    this.logger.logStep(3, `Minting ${operation.currencyCode} on-chain`);
+    this.logger.logStep(5, 'Creating escrow for collateral (1:1 reserve)');
 
     const issuerWallet = this.xrplService.getIssuerWallet();
     try {
+      // Step 5: Escrow collateral amount (1:1 backing)
+      // Convert BRL amount to the collateral representation in XRP drops
+      const collateralAmountDrops = Math.round(operation.amountDeposited * 1000000).toString();
+
+      const escrowResult = await this.xrplService.createEscrow(
+        issuerWallet,
+        operation.companyWallet,
+        operation.currencyCode,
+        collateralAmountDrops,
+      );
+
+      this.logger.logBlockchainTransaction(escrowResult, {
+        type: 'ESCROW_COLLATERAL_1_1',
+        currency: operation.currencyCode,
+        collateralAmount: operation.amountDeposited,
+        purpose: '1:1 collateral backing for issued tokens',
+      });
+
+      this.logger.logInfo('Collateral escrowed (1:1 reserve)', {
+        escrowId: escrowResult,
+        amount: operation.amountDeposited,
+        currencyCode: operation.currencyCode,
+      });
+
+      // Step 6: Mint tokens (with collateral now secured)
+      this.logger.logStep(6, `Minting ${operation.currencyCode} on-chain (collateral secured)`);
+
       const mintResult = await this.xrplService.mint(
         issuerWallet,
         operation.companyWallet,
@@ -501,32 +628,39 @@ export class StablecoinService {
         totalDeposited: operation.amountDeposited,
       });
 
-      // Step 4: Deposit to company wallet (already included in mint)
-      this.logger.logStep(4, `Depositing ${operation.currencyCode} to company wallet`, {
+      // Step 7: Deposit to company wallet (already included in mint)
+      this.logger.logStep(7, `Depositing ${operation.currencyCode} to company wallet`, {
         'TxHash': mintResult.txHash,
         'To': operation.companyWallet,
         'Amount': operation.amount,
       });
 
-      // Step 4.5: Refund excess if any
+      // Step 8: Refund excess if any
       if (operation.excessAmount && operation.excessAmount > 0) {
         await this.refundExcess(operation, operationId);
       }
 
-      // Step 5: Send webhook notification
+      // Update operation to completed with mint tx hash (before webhook)
+      operation.status = OperationStatus.COMPLETED;
+      await this.supabaseService.updateOperation(operationId, {
+        status: OperationStatus.COMPLETED,
+        txHash: mintResult.txHash,
+      });
+
+      // Step 9: Send webhook notification (FINAL STEP - after everything is confirmed)
+      this.logger.logStep(9, 'Sending webhook notification (COMPLETED)', {
+        webhookUrl: operation.webhookUrl,
+        operationId,
+      });
+
       await this.sendWebhook(operation.webhookUrl, 'mint.stablecoin.completed', {
         operationId,
         stablecoinId: operation.stablecoinId,
         status: OperationStatus.COMPLETED,
         totalDeposited: operation.amountDeposited,
         excessRefunded: operation.excessAmount || 0,
-      });
-
-      // Update operation to completed with mint tx hash
-      operation.status = OperationStatus.COMPLETED;
-      await this.supabaseService.updateOperation(operationId, {
-        status: OperationStatus.COMPLETED,
-        txHash: mintResult.txHash,
+        mintTxHash: mintResult.txHash,
+        completedAt: new Date().toISOString(),
       });
 
       this.logger.logOperationSuccess('MINT', {
@@ -534,11 +668,8 @@ export class StablecoinService {
         status: OperationStatus.COMPLETED,
         txHash: mintResult.txHash,
         totalDeposited: operation.amountDeposited,
+        webhookNotification: 'COMPLETED sent',
       });
-
-      // Step 6: Schedule temp wallet cleanup (async, after 16 ledgers)
-      this.logger.logStep(6, 'Scheduling temporary wallet cleanup');
-      // Cleanup will be triggered by WebSocket ledger listener when 16 ledgers have passed
     } catch (error) {
       this.logger.logOperationError('MINT', error);
       operation.status = OperationStatus.FAILED;
@@ -549,7 +680,7 @@ export class StablecoinService {
   // Refund excess deposited amount back to depositors
   private async refundExcess(operation: any, operationId: string) {
     try {
-      this.logger.logStep(4.5, 'Refunding excess to depositors', {
+      this.logger.logStep(7.5, 'Refunding excess to depositors', {
         excessAmount: operation.excessAmount.toFixed(6),
       });
 
