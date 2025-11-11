@@ -26,10 +26,14 @@ jobs:
       - name: Build
         run: cd sdks/typescript && npm run build
 
+      - name: Create .npmrc
+        run: |
+          mkdir -p ~/.npm
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          chmod 600 ~/.npmrc
+
       - name: Publish to NPM
         run: cd sdks/typescript && npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Success
         run: echo "✅ TypeScript SDK deployed to NPM"
