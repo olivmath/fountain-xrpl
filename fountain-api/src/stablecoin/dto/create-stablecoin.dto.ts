@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Create Stablecoin (Mint) Request DTO
@@ -37,6 +37,14 @@ export class CreateStablecoinDto {
   })
   currencyCode!: string;
 
+  @ApiPropertyOptional({
+    description: "Alias de 'currencyCode' para compatibilidade com SDK",
+    example: 'PABRL',
+    minLength: 3,
+    maxLength: 20,
+  })
+  stablecoinCode?: string;
+
   @ApiProperty({
     description: 'Amount of stablecoin to mint in Brazilian Real (BRL)',
     example: 13000,
@@ -44,6 +52,14 @@ export class CreateStablecoinDto {
     type: Number,
   })
   amount!: number;
+
+  @ApiPropertyOptional({
+    description: "Alias de 'amount' em BRL para compatibilidade com SDK",
+    example: 13000,
+    minimum: 0.01,
+    type: Number,
+  })
+  amountBrl?: number;
 
   @ApiProperty({
     description: 'Deposit method: XRP (on-chain), RLUSD (on-chain) ou PIX (off-chain via Asas)',

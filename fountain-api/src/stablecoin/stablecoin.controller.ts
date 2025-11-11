@@ -57,13 +57,17 @@ export class StablecoinController {
   ) {
     const claims = (req as any).claims;
 
+    // Suporte a aliases do SDK: stablecoinCode -> currencyCode, amountBrl -> amount
+    const currencyCode = body.currencyCode ?? body.stablecoinCode;
+    const amount = (body.amount ?? body.amountBrl) as number;
+
     return await this.stablecoinService.createStablecoin(
       claims.companyId,
       body.clientId,
       body.companyWallet,
       body.clientName,
-      body.currencyCode,
-      body.amount,
+      currencyCode as string,
+      amount,
       body.depositType,
       body.webhookUrl,
     );
