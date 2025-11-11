@@ -638,6 +638,43 @@ export class StablecoinService {
     return op;
   }
 
+  // Delete stablecoin if it has not received any deposits
+  async deleteStablecoin(companyId: string, stablecoinId: string, isAdmin: boolean) {
+    // Load stablecoin
+    const sc = await this.supabaseService.getStablecoin(stablecoinId);
+    if (!sc) {
+      throw new Error('Stablecoin not found');
+    }
+
+    // Authorization: admins can delete any; companies only their own
+    const ownerCompanyId = sc.metadata?.companyId;
+    if (!isAdmin && ownerCompanyId !== companyId) {
+      throw new UnauthorizedException('Not authorized to delete this stablecoin');
+    }
+
+    // Check operations for any deposit
+    const ops = await this.supabaseService.getOperationsByStablecoinIds([stablecoinId]);
+    const hasDeposits = ops.some((op: any) => {
+      const deposited = Number(op.amount_deposited || 0);
+      const count = Number(op.deposit_count || 0);
+      return deposited > 0 || count > 0;
+    });
+
+    if (hasDeposits) {
+      // Business rule: only delete if no deposits received
+      throw new ConflictException('Stablecoin já recebeu depósito e não pode ser apagada');
+    }
+
+    // Safe to delete; operations are ON DELETE CASCADE
+    await this.supabaseService.deleteStablecoin(stablecoinId);
+    this.logger.logOperationSuccess('DELETE_STABLECOIN', {
+      stablecoinId,
+      companyId,
+    });
+
+    return { deleted: true };
+  }
+
   // Send webhook notification
   private async sendWebhook(webhookUrl: string, eventType: string, data: any) {
     try {

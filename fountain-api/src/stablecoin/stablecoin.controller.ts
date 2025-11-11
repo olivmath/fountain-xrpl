@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, NotFoundException, ForbiddenException, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, NotFoundException, ForbiddenException, Req, Delete } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { StablecoinService } from './stablecoin.service';
 import { CustomLogger } from '../common/logger.service';
@@ -201,5 +201,33 @@ export class StablecoinController {
     }
 
     return stablecoin;
+  }
+
+  @Delete('/:stablecoinId')
+  @ApiOperation({
+    summary: 'Apagar criação de stablecoin (sem depósitos)',
+    description: 'Exclui a stablecoin e suas operações se nenhum depósito tiver sido recebido. Apenas empresa dona ou admin podem excluir.',
+  })
+  @ApiParam({ name: 'stablecoinId', description: 'Stablecoin ID (UUID)', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Stablecoin apagada com sucesso' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Não autorizado' })
+  @ApiResponse({ status: 404, description: 'Stablecoin não encontrada' })
+  async deleteStablecoin(
+    @Req() req: Request,
+    @Param('stablecoinId') stablecoinId: string,
+  ) {
+    const claims = (req as any).claims;
+
+    const stablecoin = await this.stablecoinService.getStablecoin(stablecoinId);
+    if (!stablecoin) {
+      throw new NotFoundException(`Stablecoin '${stablecoinId}' not found`);
+    }
+
+    if (!claims.isAdmin && stablecoin.metadata?.companyId !== claims.companyId) {
+      throw new NotFoundException(`Stablecoin '${stablecoinId}' not found`);
+    }
+
+    const result = await this.stablecoinService.deleteStablecoin(claims.companyId, stablecoinId, !!claims.isAdmin);
+    return result;
   }
 }

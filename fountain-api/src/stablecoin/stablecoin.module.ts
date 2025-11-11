@@ -22,6 +22,7 @@ export class StablecoinModule implements NestModule {
         { path: 'api/v1/stablecoin', method: RequestMethod.POST },
         { path: 'api/v1/stablecoin/mint', method: RequestMethod.POST },
         { path: 'api/v1/stablecoin/burn', method: RequestMethod.POST },
+        { path: 'api/v1/stablecoin/:stablecoinId', method: RequestMethod.DELETE },
       );
   }
 }

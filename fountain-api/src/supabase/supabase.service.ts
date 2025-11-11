@@ -133,6 +133,24 @@ export class SupabaseService {
     }
   }
 
+  async deleteStablecoin(id: string) {
+    if (!this.supabase) throw new Error('Supabase is not configured');
+
+    try {
+      const { data, error } = await this.supabase
+        .from('stablecoins')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+      return data?.[0] ?? null;
+    } catch (error) {
+      console.warn('⚠️  Supabase deleteStablecoin failed:', error);
+      throw error;
+    }
+  }
+
   // Operations table
   async createOperation(op: any) {
     if (!this.supabase) throw new Error('Supabase is not configured');
