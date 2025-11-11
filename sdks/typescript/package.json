@@ -1,6 +1,6 @@
 {
   "name": "fountain-api-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official TypeScript/JavaScript SDK for Fountain stablecoin API",
   "main": "dist/fountain-sdk.js",
   "types": "dist/fountain-sdk.d.ts",
