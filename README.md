@@ -4,7 +4,7 @@
 > 
 > 1. [Website](https://fountain-xrpl.vercel.app/)
 > 2. [Docs](https://docs-fountain-xrpl.vercel.app/)
-> 3. [API](https://docs-fountain-xrpl.vercel.app/)
+> 3. [API](http://18.217.104.138:3000/api/docs)
 
 > **Transações XRPL (Testnet)**
 >
