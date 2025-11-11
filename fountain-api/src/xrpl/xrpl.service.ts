@@ -34,6 +34,7 @@ export class XrplService {
     // Start ledger listener for temp wallet cleanup (16-ledger counting)
     if (this.subscriberEnabled) {
       this.setupLedgerListener();
+      this.setupTransactionListener();
     }
   }
 
@@ -47,6 +48,29 @@ export class XrplService {
     });
 
     console.log('👂 Ledger listener started for temp wallet cleanup');
+  }
+
+  // Setup global transaction listener (registered once for all subscriptions)
+  private setupTransactionListener() {
+    this.client.on('transaction', (tx: any) => {
+      // Check if this is a Payment transaction
+      if (
+        tx.type === 'transaction' &&
+        tx.transaction?.TransactionType === 'Payment' &&
+        tx.transaction?.Destination
+      ) {
+        const destinationAddress = tx.transaction.Destination;
+
+        // Check if we have a subscriber for this destination
+        const callback = this.subscribers.get(destinationAddress);
+        if (callback) {
+          console.log(`📨 Transaction detected for ${destinationAddress}: ${tx.transaction.hash}`);
+          callback(tx);
+        }
+      }
+    });
+
+    console.log('👂 Global transaction listener started');
   }
 
   // Check pending temp wallets and cleanup if they've reached 16 ledgers old
@@ -221,8 +245,10 @@ export class XrplService {
     }
 
     try {
+      // Store the callback in the subscribers map
       this.subscribers.set(walletAddress, callback);
 
+      // Subscribe to account transactions via XRPL WebSocket
       await this.client.request({
         command: 'subscribe',
         accounts: [walletAddress],
@@ -230,19 +256,8 @@ export class XrplService {
 
       console.log(`👂 Listening for deposits on ${walletAddress}`);
 
-      // Handle transactions in real time
-      this.client.on('transaction', (tx: any) => {
-        if (
-          tx.type === 'transaction' &&
-          tx.transaction?.Destination === walletAddress &&
-          tx.transaction?.TransactionType === 'Payment'
-        ) {
-          const callback = this.subscribers.get(walletAddress);
-          if (callback) {
-            callback(tx);
-          }
-        }
-      });
+      // Note: Transaction handling is done by the global listener (setupTransactionListener)
+      // which was registered once during connect()
     } catch (error) {
       console.error(`❌ Subscribe error for ${walletAddress}:`, error.message);
     }
