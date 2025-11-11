@@ -53,6 +53,17 @@ export class XrplService {
   // Setup global transaction listener (registered once for all subscriptions)
   private setupTransactionListener() {
     this.client.on('transaction', (tx: any) => {
+      // Debug: Log all incoming transaction events
+      console.log('🔍 [DEBUG] WebSocket transaction event received:', {
+        type: tx.type,
+        engine_result: tx.engine_result,
+        validated: tx.validated,
+        transactionType: tx.transaction?.TransactionType,
+        destination: tx.transaction?.Destination,
+        subscribersCount: this.subscribers.size,
+        subscribedAddresses: Array.from(this.subscribers.keys()),
+      });
+
       // Check if this is a Payment transaction
       if (
         tx.type === 'transaction' &&
@@ -66,6 +77,8 @@ export class XrplService {
         if (callback) {
           console.log(`📨 Transaction detected for ${destinationAddress}: ${tx.transaction.hash}`);
           callback(tx);
+        } else {
+          console.log(`⚠️  No subscriber found for destination: ${destinationAddress}`);
         }
       }
     });
@@ -248,12 +261,19 @@ export class XrplService {
       // Store the callback in the subscribers map
       this.subscribers.set(walletAddress, callback);
 
+      console.log('🔍 [DEBUG] Subscriber registered:', {
+        walletAddress,
+        totalSubscribers: this.subscribers.size,
+        allSubscribers: Array.from(this.subscribers.keys()),
+      });
+
       // Subscribe to account transactions via XRPL WebSocket
-      await this.client.request({
+      const subscribeResponse = await this.client.request({
         command: 'subscribe',
         accounts: [walletAddress],
       });
 
+      console.log('🔍 [DEBUG] XRPL subscribe response:', subscribeResponse);
       console.log(`👂 Listening for deposits on ${walletAddress}`);
 
       // Note: Transaction handling is done by the global listener (setupTransactionListener)
