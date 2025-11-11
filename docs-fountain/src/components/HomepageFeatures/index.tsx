@@ -23,8 +23,8 @@ const FeatureList: FeatureItem[] = [
         produção.
       </>
     ),
-    href: '/docs/intro',
-    cta: 'Ver guia de integração',
+    href: '/docs/fountain-api',
+    cta: 'Ver visão geral da API',
   },
   {
     eyebrow: 'XRPL Enterprise',
@@ -46,8 +46,8 @@ const FeatureList: FeatureItem[] = [
         reconciliações.
       </>
     ),
-    href: '/docs/tutorial-extras/manage-docs-versions',
-    cta: 'Abrir dashboards',
+    href: '/docs/api/operations',
+    cta: 'Ver monitoramento de operações',
   },
 ];
 
@@ -76,7 +76,7 @@ export default function HomepageFeatures(): ReactNode {
         <div className={styles.featuresHeader}>
           <span className={styles.featuresBadge}>Por que escolher a Fountain</span>
           <Heading as="h2" className={styles.featuresTitle}>
-            Os blocos para lançar uma operação de stablecoin regulada
+            O SDK para lançar uma operação de stablecoin 
           </Heading>
           <p className={styles.featuresSubtitle}>
             Documentação completa para equipes de produto, engenharia e compliance reconstruírem sua tesouraria em

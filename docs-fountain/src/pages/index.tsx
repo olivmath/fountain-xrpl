@@ -18,7 +18,7 @@ function HomepageHeader(): ReactNode {
         <div className={styles.heroContent}>
           <span className={styles.eyebrow}>Documentação Fountain</span>
           <Heading as="h1" className={styles.title}>
-            Construa produtos lastreados em reais com {siteConfig.title}
+          Stablecoin Factory para RWA  com {siteConfig.title}
           </Heading>
           <p className={styles.subtitle}>
             Dashboards, APIs e fluxos de compliance para tokenizadoras emitirem e gerenciarem stablecoins BRL no XRP
