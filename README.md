@@ -1,5 +1,11 @@
 # Fountain XRPL
 
+> **Deploy Vercel and AWS EC2**
+> 
+> 1. [Website](https://fountain-xrpl.vercel.app/)
+> 2. [Docs](https://docs-fountain-xrpl.vercel.app/)
+> 3. [API](https://docs-fountain-xrpl.vercel.app/)
+
 > **Transações XRPL (Testnet)**
 >
 > 1. [Trustline do cliente](https://testnet.xrpl.org/transactions/273461EEF2C70CD9770480BA886378E74D24E3E61A145F747F2DA8BD1A5A00CE)
@@ -9,10 +15,6 @@
 > 5. [Escrow de XRP](https://testnet.xrpl.org/transactions/541FBE41B16698F4F9359BCCAF0630D21D1A0E73ABF6AC961F473F01CAE37536)
 > 6. [Pagamento da stablecoin](https://testnet.xrpl.org/transactions/24DBD2DA1B55E3B67C844D9B5ADEFA93F5D89D58683C95B3807D881F8A98632C)
 >
-> Deploys:
-> 1.[Website](https://fountain-xrpl.vercel.app/)
-> 2.[Docs](https://docs-fountain-xrpl.vercel.app/)
-> 3.[API](https://docs-fountain-xrpl.vercel.app/)
 
 > Infraestrutura de stablecoins BRL na XRP Ledger para tokenizadoras.
 
