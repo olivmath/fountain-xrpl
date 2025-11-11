@@ -220,20 +220,9 @@ cd website && npm run lint && npm run build
 - [ ] +5 tokenizadoras • R$20M MRR
 - [ ] Observabilidade avançada e automações de compliance
 
-## 📄 License
-
-Proprietary © Fountain – uso interno/parceiros. Solicite autorização antes de redistribuir.
-
-## 🤝 Contribuindo
-
-1. Crie uma issue descrevendo o contexto.
-2. Abra PR com descrição clara, incluindo testes e documentações atualizados.
-3. Siga padrões do lint/format (ESLint, Prettier, `tsconfig`).
-
 ## 📞 Suporte & Contato
 
-- E-mail: `support@fountain.app`
-- Ripple Parcerias: `partnerships@fountain.app`
+- E-mail: `bellujrb@gmail.com`
 - Documentação XRPL: https://xrpl.org/docs
 - NestJS: https://docs.nestjs.com
 - Supabase: https://supabase.com/docs
