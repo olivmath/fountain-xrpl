@@ -336,6 +336,26 @@ export class StablecoinService {
         return;
       }
 
+      // Step 1.5: Validate depositor is authorized (must be companyWallet)
+      if (depositorAddress !== 'UNKNOWN' && depositorAddress !== operation.companyWallet) {
+        this.logger.logWarning('Depósito indesejado - endereço não autorizado', {
+          depositor: depositorAddress,
+          authorized: operation.companyWallet,
+          amount: amountDeposited.toFixed(6),
+          txHash,
+        });
+
+        // Refund immediately and do not process
+        await this.refundUnauthorizedDeposit(
+          operation,
+          operationId,
+          depositorAddress,
+          amountDeposited,
+          txHash
+        );
+        return;
+      }
+
       // Step 2: Accumulate deposit in database
       const totalDeposited = await this.supabaseService.accumulateDeposit(
         operationId,
@@ -559,6 +579,61 @@ export class StablecoinService {
     } catch (error) {
       this.logger.logOperationError('REFUND_EXCESS', error);
       // Don't throw - refund failure should not stop the mint process
+    }
+  }
+
+  // Refund unauthorized deposit immediately (security measure)
+  private async refundUnauthorizedDeposit(
+    operation: any,
+    operationId: string,
+    depositorAddress: string,
+    amount: number,
+    txHash: string
+  ) {
+    try {
+      this.logger.logWarning('🚫 DEPÓSITO INDESEJADO - Devolvendo fundos', {
+        depositor: depositorAddress,
+        authorized: operation.companyWallet,
+        amount: amount.toFixed(6),
+        txHash,
+      });
+
+      // Get temp wallet for sending refund
+      const currentOp = await this.supabaseService.getOperation(operationId);
+      if (!currentOp || !currentOp.temp_wallet_seed_encrypted) {
+        this.logger.logError('Cannot refund - temp wallet not found', {
+          operationId,
+          depositor: depositorAddress,
+        });
+        return;
+      }
+
+      const tempWalletSeed = this.encryptionService.decrypt(currentOp.temp_wallet_seed_encrypted);
+
+      // Send full amount back to depositor
+      const refundTxHash = await this.xrplService.sendPayment(
+        operation.tempWalletAddress,
+        tempWalletSeed,
+        depositorAddress,
+        amount
+      );
+
+      this.logger.logBlockchainTransaction(refundTxHash, {
+        type: 'UNAUTHORIZED_DEPOSIT_REFUND',
+        to: depositorAddress,
+        amount: amount.toFixed(6),
+        reason: 'Depositor not authorized',
+      });
+
+      this.logger.logOperationSuccess('REFUND_UNAUTHORIZED', {
+        operationId,
+        depositor: depositorAddress,
+        amountRefunded: amount.toFixed(6),
+        refundTxHash,
+      });
+    } catch (error) {
+      this.logger.logOperationError('REFUND_UNAUTHORIZED', error);
+      // Log but don't throw - we want to track unauthorized deposits even if refund fails
     }
   }
 
