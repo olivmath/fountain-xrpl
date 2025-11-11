@@ -1,0 +1,63 @@
+name: Deploy SDKs
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-typescript:
+    name: Deploy TypeScript SDK to NPM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: cd sdks/typescript && npm ci
+
+      - name: Build
+        run: cd sdks/typescript && npm run build
+
+      - name: Publish to NPM
+        run: cd sdks/typescript && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Success
+        run: echo "✅ TypeScript SDK deployed to NPM"
+
+  deploy-python:
+    name: Deploy Python SDK to PyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: python -m pip install build twine
+
+      - name: Build
+        run: cd sdks/python && python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          packages-dir: sdks/python/dist/
+
+      - name: Success
+        run: echo "✅ Python SDK deployed to PyPI"
