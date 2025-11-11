@@ -1,10 +1,9 @@
+import * as xrpl from 'xrpl';
+export { xrpl };
 /**
  * Fountain API SDK
  * Easy-to-use TypeScript SDK for integrating with Fountain stablecoin API
  */
-export interface LoginRequest {
-    email: string;
-}
 export interface LoginResponse {
     jwt: string;
     expires: string;
@@ -14,23 +13,26 @@ export interface LoginResponse {
     isAdmin: boolean;
 }
 export interface CreateStablecoinRequest {
-    companyId: string;
     clientId: string;
-    companyWallet: string;
     clientName: string;
-    currencyCode: string;
-    amount: number;
+    stablecoinCode: string;
+    amountBrl: number;
     depositType: 'XRP' | 'RLUSD' | 'PIX';
     webhookUrl: string;
 }
 export interface CreateStablecoinResponse {
     operationId: string;
     status: string;
+    amountXRP?: number;
     amountRLUSD?: number;
     wallet?: string;
     qrCode?: string;
     amountBrl?: number;
     issuerAddress?: string;
+}
+export interface PrepareStablecoinRequest {
+    stablecoinCode: string;
+    amountBrl: number;
 }
 export interface BurnStablecoinRequest {
     stablecoinId: string;
@@ -97,11 +99,41 @@ export interface AdminStatistics {
 export declare class FountainSDK {
     private client;
     private jwtToken;
-    constructor(baseURL?: string);
+    private email;
+    private loginResponse;
+    private xrplClient;
+    private networkUrl;
     /**
-     * Login with email and get JWT token
+     * Create a new Fountain SDK instance
+     * @param baseURL - Fountain API URL
+     * @param email - Company email for authentication
+     * @param networkUrl - XRPL network URL (optional)
      */
-    login(email: string): Promise<LoginResponse>;
+    constructor(baseURL: string, email: string, networkUrl?: string);
+    /**
+     * Get JWT token (auto-login if not authenticated)
+     */
+    getToken(): Promise<string>;
+    /**
+     * Login with email and get JWT token (internal method)
+     */
+    private login;
+    /**
+     * Get XRPL client (creates if not exists)
+     */
+    private getXRPLClient;
+    /**
+     * Prepare stablecoin trustline transaction
+     * @param params - Stablecoin code and amount
+     * @returns Prepared transaction ready to be signed
+     */
+    prepareStablecoin(params: PrepareStablecoinRequest): Promise<any>;
+    /**
+     * Submit and wait for XRPL transaction
+     * @param txBlob - Signed transaction blob
+     * @returns Transaction result
+     */
+    submitAndWait(txBlob: string): Promise<any>;
     /**
      * Create a new stablecoin (Mint operation)
      */
@@ -129,10 +161,6 @@ export declare class FountainSDK {
      */
     setToken(token: string): void;
     /**
-     * Get current JWT token
-     */
-    getToken(): string | null;
-    /**
      * Clear JWT token (logout)
      */
     logout(): void;
@@ -140,6 +168,10 @@ export declare class FountainSDK {
      * Check if authenticated
      */
     isAuthenticated(): boolean;
+    /**
+     * Disconnect from XRPL network
+     */
+    disconnect(): Promise<void>;
     /**
      * Create a trustline from client wallet to Fountain issuer
      * This must be called before minting tokens to establish trust relationship
