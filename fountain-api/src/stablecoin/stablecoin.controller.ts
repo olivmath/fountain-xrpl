@@ -210,13 +210,25 @@ export class StablecoinController {
 
   @Delete('/:stablecoinId')
   @ApiOperation({
-    summary: 'Apagar criação de stablecoin (sem depósitos)',
-    description: 'Exclui a stablecoin e suas operações se nenhum depósito tiver sido recebido. Apenas empresa dona ou admin podem excluir.',
+    summary: 'Cancelar criação de stablecoin antes do mint',
+    description: 'Cancela a stablecoin antes de ser mintada. Funciona em dois casos: (1) Stablecoin criada mas sem depósitos, (2) Stablecoin criada com depósito parcial - nesse caso, estorna o valor para o cliente. Não é possível cancelar após mint completo (use burn). Apenas empresa dona ou admin podem cancelar.',
   })
   @ApiParam({ name: 'stablecoinId', description: 'Stablecoin ID (UUID)', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Stablecoin apagada com sucesso' })
+  @ApiResponse({
+    status: 200,
+    description: 'Stablecoin cancelada com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        cancelled: { type: 'boolean', example: true },
+        refunded: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Stablecoin cancelled and deposits refunded' },
+      },
+    },
+  })
   @ApiResponse({ status: 403, description: 'Forbidden - Não autorizado' })
   @ApiResponse({ status: 404, description: 'Stablecoin não encontrada' })
+  @ApiResponse({ status: 409, description: 'Conflict - Stablecoin já foi mintada (use burn)' })
   async deleteStablecoin(
     @Req() req: Request,
     @Param('stablecoinId') stablecoinId: string,

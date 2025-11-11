@@ -848,7 +848,7 @@ export class StablecoinService {
     return op;
   }
 
-  // Delete stablecoin if it has not received any deposits
+  // Delete/Cancel stablecoin (even with partial deposits)
   async deleteStablecoin(companyId: string, stablecoinId: string, isAdmin: boolean) {
     // Load stablecoin
     const sc = await this.supabaseService.getStablecoin(stablecoinId);
@@ -870,19 +870,153 @@ export class StablecoinService {
       return deposited > 0 || count > 0;
     });
 
-    if (hasDeposits) {
-      // Business rule: only delete if no deposits received
-      throw new ConflictException('Stablecoin já recebeu depósito e não pode ser apagada');
+    // Check if stablecoin has been fully minted (completed)
+    const hasCompletedOps = ops.some((op: any) => op.status === OperationStatus.COMPLETED);
+
+    if (hasCompletedOps) {
+      // Cannot cancel if mint has completed
+      throw new ConflictException('Stablecoin já foi mintada e não pode ser cancelada. Use a operação de burn.');
     }
 
-    // Safe to delete; operations are ON DELETE CASCADE
-    await this.supabaseService.deleteStablecoin(stablecoinId);
-    this.logger.logOperationSuccess('DELETE_STABLECOIN', {
-      stablecoinId,
-      companyId,
+    if (hasDeposits) {
+      // Has partial deposits - need to refund before cancellation
+      this.logger.logOperationStart('CANCEL_STABLECOIN', {
+        stablecoinId,
+        companyId,
+        reason: 'Partial deposits - refunding',
+      });
+
+      // Refund all partial deposits
+      for (const op of ops) {
+        const deposited = Number(op.amount_deposited || 0);
+        if (deposited > 0) {
+          await this.refundPartialDeposits(op);
+        }
+      }
+    }
+
+    // Update all operations to CANCELLED status
+    for (const op of ops) {
+      await this.supabaseService.updateOperation(op.id, {
+        status: OperationStatus.CANCELLED,
+      });
+    }
+
+    // Update stablecoin status
+    await this.supabaseService.updateStablecoin(stablecoinId, {
+      status: StablecoinStatus.INACTIVE,
     });
 
-    return { deleted: true };
+    // Unsubscribe from deposit listeners if any
+    const opsWithWallets = ops.filter((op: any) => op.deposit_wallet_address);
+    for (const op of opsWithWallets) {
+      try {
+        await this.xrplService.unsubscribeFromWallet(op.deposit_wallet_address);
+      } catch (error) {
+        this.logger.logWarning('Failed to unsubscribe wallet', {
+          wallet: op.deposit_wallet_address,
+          error: error.message,
+        });
+      }
+    }
+
+    this.logger.logOperationSuccess('CANCEL_STABLECOIN', {
+      stablecoinId,
+      companyId,
+      hadDeposits: hasDeposits,
+    });
+
+    return {
+      cancelled: true,
+      refunded: hasDeposits,
+      message: hasDeposits
+        ? 'Stablecoin cancelled and deposits refunded'
+        : 'Stablecoin cancelled'
+    };
+  }
+
+  // Refund all partial deposits for a cancelled operation
+  private async refundPartialDeposits(operation: any) {
+    try {
+      const operationId = operation.id;
+      const depositHistory = (operation.deposit_history || []) as any[];
+
+      if (depositHistory.length === 0 || !operation.amount_deposited || operation.amount_deposited === 0) {
+        this.logger.logInfo('No deposits to refund', { operationId });
+        return;
+      }
+
+      this.logger.logStep(1, 'Refunding partial deposits due to cancellation', {
+        operationId,
+        totalDeposited: operation.amount_deposited,
+        depositsCount: depositHistory.length,
+      });
+
+      // Get temp wallet for sending refunds
+      if (!operation.temp_wallet_seed_encrypted || !operation.deposit_wallet_address) {
+        this.logger.logWarning('Cannot refund - temp wallet not found', {
+          operationId,
+        });
+        return;
+      }
+
+      const tempWalletSeed = this.encryptionService.decrypt(operation.temp_wallet_seed_encrypted);
+      const refunds: Array<{ address: string; amount: number; txHash: string }> = [];
+
+      // Refund each deposit back to its depositor
+      for (const deposit of depositHistory) {
+        if (!deposit.depositorAddress || deposit.depositorAddress === 'UNKNOWN') {
+          this.logger.logWarning('Skipping refund for unknown depositor', {
+            txHash: deposit.txHash,
+          });
+          continue;
+        }
+
+        try {
+          // Send full deposit amount back to depositor
+          const refundTxHash = await this.xrplService.sendPayment(
+            operation.deposit_wallet_address,
+            tempWalletSeed,
+            deposit.depositorAddress,
+            deposit.amount
+          );
+
+          refunds.push({
+            address: deposit.depositorAddress,
+            amount: deposit.amount,
+            txHash: refundTxHash,
+          });
+
+          this.logger.logBlockchainTransaction(refundTxHash, {
+            type: 'CANCELLATION_REFUND',
+            to: deposit.depositorAddress,
+            amount: deposit.amount.toFixed(6),
+            reason: 'Operation cancelled',
+          });
+        } catch (error) {
+          this.logger.logError('Failed to refund to depositor', {
+            depositor: deposit.depositorAddress,
+            amount: deposit.amount,
+            error: error.message,
+          });
+        }
+      }
+
+      // Store refund information in operation
+      await this.supabaseService.updateOperation(operationId, {
+        refundHistory: refunds,
+        status: OperationStatus.CANCELLED,
+      });
+
+      this.logger.logOperationSuccess('REFUND_CANCELLATION', {
+        operationId,
+        totalRefunded: operation.amount_deposited,
+        refundsCount: refunds.length,
+      });
+    } catch (error) {
+      this.logger.logOperationError('REFUND_CANCELLATION', error);
+      // Don't throw - log the error but continue with cancellation
+    }
   }
 
   // Send webhook notification
