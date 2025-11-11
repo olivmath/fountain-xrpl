@@ -4,20 +4,20 @@
 
 Fountain unifica backend, SDKs, documentação e website para entregar uma infraestrutura ponta a ponta: tokenizadoras conectam sua operação, fazem KYC/AML uma única vez e automatizam emissões de stablecoin com colateral custodiado on-chain.
 
-## 🎯 Features
+## Features
 
-- **🔐 Autenticação B2B** – JWT com escopos por empresa, middlewares admin e integração com Supabase
-- **💳 Stablecoins em BRL** – Fluxos de mint/burn com escrow XRPL, webhooks e carteiras temporárias automatizadas
-- **📈 Operações em tempo real** – Monitoramento de depósitos, dashboards, relatórios financeiros e APIs de auditoria
-- **⛓️ Infraestrutura XRPL** – Mint, clawback, limpeza de carteiras e roteamento via XRPL Testnet/Mainnet
-- **⚙️ Automação de orquestração** – Scripts para trustline, simulação de depósitos, limpeza e geração de SDKs
-- **🧰 SDKs oficiais** – Clientes TypeScript e Python com cobertura completa da API (20 métodos)
-- **📚 Portal técnico** – Docusaurus com visão do produto, guias de módulos e documentação dos SDKs
-- **💻 Website Next.js** – Landing pública com narrativa de produto, roadmap e componentes reusáveis
+- **Autenticação B2B** – JWT com escopos por empresa, middlewares admin e integração com Supabase
+- **Stablecoins em BRL** – Fluxos de mint/burn com escrow XRPL, webhooks e carteiras temporárias automatizadas
+- **Operações em tempo real** – Monitoramento de depósitos, dashboards, relatórios financeiros e APIs de auditoria
+- **Infraestrutura XRPL** – Mint, clawback, limpeza de carteiras e roteamento via XRPL Testnet/Mainnet
+- **Automação de orquestração** – Scripts para trustline, simulação de depósitos, limpeza e geração de SDKs
+- **SDKs oficiais** – Clientes TypeScript e Python com cobertura completa da API (20 métodos)
+- **Portal técnico** – Docusaurus com visão do produto, guias de módulos e documentação dos SDKs
+- **Website Next.js** – Landing pública com narrativa de produto, roadmap e componentes reusáveis
 
-**📦 Deploy de referência:** API NestJS + XRPL Testnet (ver `.env` abaixo)
+**Deploy de referência:** API NestJS + XRPL Testnet (ver `.env` abaixo)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 fountain-xrpl/
@@ -38,7 +38,7 @@ fountain-xrpl/
 | `sdks/python`    | SDK Python com dataclasses, exceções e exemplos                           | Python 3.10+, requests    |
 | `website`        | Landing institucional e componentes de marketing                          | Next.js 14, Tailwind, shadcn |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Pré-requisitos
 
@@ -104,7 +104,7 @@ npm run dev
 - Páginas em `app/`
 - Componentes UI em `components/ui/` (`fountain-solution.tsx`, `fountain-roadmap.tsx`)
 
-## 🧪 Testes e Ferramentas
+## Testes e Ferramentas
 
 - `fountain-api/test-api.sh` – fluxo end-to-end (login → mint → burn)
 - `fountain-api/test/` – testes E2E com Jest
@@ -112,29 +112,12 @@ npm run dev
 - `sdks/python/tests` – suíte pytest
 - `docs-fountain` – `npm run lint`, `npm run build` valida links e MDX
 
-## 🏗️ Arquitetura
+## Arquitetura
 
-1. Tokenizadora autentica via `POST /api/v1/auth` (Supabase allowed_emails) → JWT (7 dias)
-2. `POST /api/v1/stablecoin` cria operação:
-   - Gera carteira temporária XRPL, ativa com 1.3 XRP
-   - Calcula RLUSD necessário (`USD_BRL_RATE`)
-   - Subscreve a depósitos ou simula (modo dev)
-3. Deposito confirmado → `mint` emite stablecoin para carteira corporativa (trustline obrigatória)
-4. Webhooks notificam status, operação registrada no Supabase
-5. `POST /stablecoin/burn` executa `Clawback` e liquidação RLUSD/PIX
-6. Limpeza automática de carteiras após 16 ledgers (AccountDelete)
-7. Dashboards (`/companies`, `/operations`, `/admin`) fornecem visão granular
+![Image](https://github.com/user-attachments/assets/bed4dcee-0f6c-48c5-81ae-a63687927cba)
+![Image](https://github.com/user-attachments/assets/f8801933-b1b3-449d-b725-c4df20710f5b)
 
-Ver diagramas completos em `FOUNTAIN_PROJECT_MAP.md` e `IMPLEMENTATION_SUMMARY.md`.
-
-## 📚 Documentação
-
-- **Portal técnico:** `docs-fountain` (navegue em `/docs/fountain-api` e `/docs/sdks`)
-- **SDK Docs:** `sdks/README.md`, `sdks/typescript/README.md`, `sdks/python/README.md`
-- **Logs:** [`LOGGING_EXAMPLE.md`](LOGGING_EXAMPLE.md)
-- **Planejamento:** [`NEW_VERSION.md`](NEW_VERSION.md), [`FOUNTAIN_PROJECT_MAP.md`](FOUNTAIN_PROJECT_MAP.md)
-
-## 🔑 Environment Variables
+## Environment Variables
 
 ### Fountain API (`fountain-api/.env`)
 
@@ -171,7 +154,7 @@ NEXT_PUBLIC_DOCS_URL=https://docs.fountain.app
 
 (ajuste conforme deploy)
 
-## 🛠️ Desenvolvimento
+## Desenvolvimento
 
 ```bash
 # API
@@ -189,23 +172,7 @@ cd docs-fountain && npm run build
 cd website && npm run lint && npm run build
 ```
 
-## 🚢 Deployment Checklist
-
-1. **API**
-   - Configurar variáveis em ambiente seguro (Supabase + XRPL mainnet)
-   - Executar `npm run build` e `npm run start:prod`
-2. **Supabase**
-   - Aplicar migrations (`fountain-api/supabase/migrations`)
-   - Configurar pg_cron para limpeza/monitoramento se necessário
-3. **Docs**
-   - `npm run build` → publicar estático (Vercel, Netlify, S3)
-4. **SDKs**
-   - Atualizar versão `package.json` / `pyproject.toml`
-   - `npm publish` / `twine upload`
-5. **Website**
-   - Deploy no Vercel/Netlify, ajustar variáveis públicas
-
-## 🗺️ Roadmap
+## Roadmap
 
 ### V1 – Hoje
 - ✅ Piloto com 1 tokenizadora (+R$4M MRR)
@@ -220,7 +187,7 @@ cd website && npm run lint && npm run build
 - [ ] +5 tokenizadoras • R$20M MRR
 - [ ] Observabilidade avançada e automações de compliance
 
-## 📞 Suporte & Contato
+## Suporte & Contato
 
 - E-mail: `bellujrb@gmail.com`
 - Documentação XRPL: https://xrpl.org/docs
