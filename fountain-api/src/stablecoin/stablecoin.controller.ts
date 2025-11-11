@@ -26,7 +26,7 @@ export class StablecoinController {
   @Post()
   @ApiOperation({
     summary: 'Create a new stablecoin (Mint)',
-    description: 'Create a new stablecoin backed by RLUSD or Pix deposit. Returns temporary wallet address for on-chain deposits.',
+    description: 'Cria uma nova stablecoin com depósito on-chain (XRP/RLUSD) ou off-chain (PIX). Para on-chain, retorna carteira temporária e inicia o listener de depósitos.',
   })
   @ApiBody({ type: CreateStablecoinDto })
   @ApiResponse({
@@ -37,6 +37,7 @@ export class StablecoinController {
       properties: {
         operationId: { type: 'string' },
         status: { type: 'string', example: 'require_deposit' },
+        amountXRP: { type: 'number', example: 2.123456 },
         amountRLUSD: { type: 'number', example: 2476.19 },
         wallet: { type: 'string', example: 'rcLASSiCq8LWcymCHaCgK19QMEvUspuRM' },
       },

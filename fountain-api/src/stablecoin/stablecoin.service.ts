@@ -41,7 +41,7 @@ export class StablecoinService {
     clientName: string,
     currencyCode: string,
     amount: number,
-    depositType: 'RLUSD' | 'PIX',
+    depositType: 'XRP' | 'RLUSD' | 'PIX',
     webhookUrl: string,
   ) {
     let operationId = uuidv4();
@@ -106,11 +106,11 @@ export class StablecoinService {
         amount,
       });
 
-      if (depositType === 'RLUSD') {
-        return this.createStablecoinRlusd(operation, operationId);
-      } else {
+      if (depositType === 'PIX') {
         return this.createStablecoinPix(operation, operationId);
       }
+      // On-chain deposit (XRP or RLUSD) → returns wallet and starts listener
+      return this.createStablecoinRlusd(operation, operationId);
     } catch (error) {
       this.logger.logOperationError('MINT', error);
       // Supabase unique constraint on currency_code
@@ -135,15 +135,28 @@ export class StablecoinService {
     const encryptedSeed = this.encryptionService.encrypt(tempWallet.seed || '');
     const currentLedger = await this.xrplService.getCurrentLedgerIndex();
 
-    // Step 3: Calculate required RLUSD amount
-    const rlusdAmount = await this.binanceService.calculateRlusdForBrl(operation.amount);
-    this.logger.logStep(3, 'Calculating on-chain required amount', {
-      'Dollar price': { rate: this.config.usdBrlRate },
-      'Calculation': `${operation.amount} / ${this.config.usdBrlRate} == ${rlusdAmount.toFixed(6)}`,
-    });
+    // Step 3: Calculate required on-chain amount based on depositType
+    let requiredAmount = 0;
+    if (operation.depositType === 'XRP') {
+      const xrpRequired = await this.binanceService.calculateXrpForBrl(operation.amount);
+      requiredAmount = xrpRequired;
+      const xrpBrlRate = await this.binanceService.getXrpBrlRate();
+      this.logger.logStep(3, 'Calculando valor exigido on-chain (XRP)', {
+        'XRP/BRL': { rate: xrpBrlRate },
+        'Cálculo': `${operation.amount} / ${xrpBrlRate} == ${xrpRequired.toFixed(6)}`,
+      });
+    } else {
+      const rlusdAmount = await this.binanceService.calculateRlusdForBrl(operation.amount);
+      requiredAmount = rlusdAmount;
+      this.logger.logStep(3, 'Calculating on-chain required amount (RLUSD)', {
+        'Dollar price': { rate: this.config.usdBrlRate },
+        'Calculation': `${operation.amount} / ${this.config.usdBrlRate} == ${rlusdAmount.toFixed(6)}`,
+      });
+    }
 
     // Step 4: Update operation with wallet data and encrypted seed
-    operation.rlusdRequired = rlusdAmount;
+    // Keep rlusdRequired for backward-compat in deposit processing
+    operation.rlusdRequired = requiredAmount;
     operation.tempWalletAddress = tempWallet.address;
 
     await this.supabaseService.updateStablecoin(operation.stablecoinId, {
@@ -151,14 +164,15 @@ export class StablecoinService {
       metadata: {
         companyId: operation.companyId,
         tempWalletAddress: tempWallet.address,
-        rlusdRequired: rlusdAmount,
+        requiredAmount,
+        requiredCurrency: operation.depositType,
       },
     });
 
     await this.supabaseService.updateOperation(operationId, {
       status: OperationStatus.REQUIRE_DEPOSIT,
       depositWalletAddress: tempWallet.address,
-      amountRlusd: rlusdAmount,
+      amountRlusd: requiredAmount,
       tempWalletSeedEncrypted: encryptedSeed,
       tempWalletCreationLedger: currentLedger,
     });
@@ -189,19 +203,35 @@ export class StablecoinService {
 
     this.subscribeToDeposit(operation, operationId, tempWallet.address);
 
-    this.logger.logOperationSuccess('MINT', {
-      operationId,
-      status: operation.status,
-      amountRLUSD: rlusdAmount.toFixed(6),
-      wallet: tempWallet.address,
-    });
+    if (operation.depositType === 'XRP') {
+      this.logger.logOperationSuccess('MINT', {
+        operationId,
+        status: operation.status,
+        amountXRP: requiredAmount.toFixed(6),
+        wallet: tempWallet.address,
+      });
 
-    return {
-      operationId,
-      status: operation.status,
-      amountRLUSD: rlusdAmount.toFixed(6),
-      wallet: tempWallet.address,
-    };
+      return {
+        operationId,
+        status: operation.status,
+        amountXRP: requiredAmount.toFixed(6),
+        wallet: tempWallet.address,
+      };
+    } else {
+      this.logger.logOperationSuccess('MINT', {
+        operationId,
+        status: operation.status,
+        amountRLUSD: requiredAmount.toFixed(6),
+        wallet: tempWallet.address,
+      });
+
+      return {
+        operationId,
+        status: operation.status,
+        amountRLUSD: requiredAmount.toFixed(6),
+        wallet: tempWallet.address,
+      };
+    }
   }
 
   private async createStablecoinPix(operation: any, operationId: string) {
@@ -512,7 +542,7 @@ export class StablecoinService {
     stablecoinId: string,
     currencyCode: string,
     amountBrl: number,
-    returnAsset: 'RLUSD' | 'PIX',
+    returnAsset: 'XRP' | 'RLUSD' | 'PIX',
     webhookUrl: string,
   ) {
     const operationId = uuidv4();

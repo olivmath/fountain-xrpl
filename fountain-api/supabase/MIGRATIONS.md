@@ -136,6 +136,30 @@ operations
 \d operations
 ```
 
+### Deposit Tracking (Migration 007)
+
+To enable partial deposit tracking used by the XRP/RLUSD on-chain flow, apply `007_add_deposit_tracking.sql`.
+
+This migration adds the following columns to `operations`:
+- `amount_deposited NUMERIC(20,8) DEFAULT 0`
+- `deposit_count INTEGER DEFAULT 0`
+- `deposit_history JSONB DEFAULT '[]'`
+
+You can apply it via Dashboard → SQL Editor by pasting the file contents, or via CLI using `supabase db push` (recommended, it applies any pending migrations).
+
+Verification query:
+```sql
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'operations'
+  AND column_name IN ('amount_deposited','deposit_count','deposit_history');
+```
+
+If the migration was applied, you should see all three columns listed.
+
+Note: The API has a temporary fallback to proceed without these columns, but deposit history and accumulation will not be persisted. Applying migration 007 is recommended for production.
+
 ## Row Level Security (RLS)
 
 All tables have RLS enabled with policies that allow:

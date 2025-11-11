@@ -30,11 +30,11 @@ export class BurnDto {
   amountBrl!: number;
 
   @ApiProperty({
-    description: 'Asset to receive in return: RLUSD (on-chain) or PIX (off-chain via Asas)',
-    enum: ['RLUSD', 'PIX'],
-    example: 'RLUSD',
+    description: 'Asset to receive in return: XRP (on-chain), RLUSD (on-chain) ou PIX (off-chain via Asas)',
+    enum: ['XRP', 'RLUSD', 'PIX'],
+    example: 'XRP',
   })
-  returnAsset!: 'RLUSD' | 'PIX';
+  returnAsset!: 'XRP' | 'RLUSD' | 'PIX';
 
   @ApiProperty({
     description: 'Webhook URL to receive burn completion status',

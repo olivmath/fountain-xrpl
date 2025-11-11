@@ -46,11 +46,11 @@ export class CreateStablecoinDto {
   amount!: number;
 
   @ApiProperty({
-    description: 'Deposit method: RLUSD (on-chain) or PIX (off-chain via Asas)',
-    enum: ['RLUSD', 'PIX'],
-    example: 'RLUSD',
+    description: 'Deposit method: XRP (on-chain), RLUSD (on-chain) ou PIX (off-chain via Asas)',
+    enum: ['XRP', 'RLUSD', 'PIX'],
+    example: 'XRP',
   })
-  depositType!: 'RLUSD' | 'PIX';
+  depositType!: 'XRP' | 'RLUSD' | 'PIX';
 
   @ApiProperty({
     description: 'Webhook URL to receive operation status updates',

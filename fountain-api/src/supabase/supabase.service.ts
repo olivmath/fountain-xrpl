@@ -358,7 +358,17 @@ export class SupabaseService {
         })
         .eq('id', operationId);
 
-      if (error) throw error;
+      if (error) {
+        // Graceful fallback when deposit tracking columns are missing (migration not applied)
+        const msg = String(error.message || '');
+        const code = (error as any).code || '';
+        if (code === 'PGRST204' || msg.includes('amount_deposited')) {
+          console.warn('⚠️  Deposit tracking columns missing; proceeding without DB accumulation.');
+          // Return computed total so upstream flow can continue to mint when requirement is met
+          return newTotal;
+        }
+        throw error;
+      }
 
       return newTotal;
     } catch (error: any) {
