@@ -18,13 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "create-stablecoin": "node scripts/create-stablecoin.js",
-    "simulate-deposit": "node scripts/simulate-deposit.js",
-    "send-xrp": "node scripts/send-xrp.js",
-    "burn": "node scripts/burn.js",
-    "summary": "node scripts/summary.js",
-    "login": "node scripts/login.js",
-    "trustline": "node scripts/trustline.js"
+    "xrp:deposit": "node scripts/xrp/deposit.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
