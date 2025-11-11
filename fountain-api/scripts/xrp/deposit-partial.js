@@ -15,6 +15,7 @@ const {
   STABLECOIN_CODE,
   AMOUNT_BRL,
   WEBHOOK_URL,
+  FOUNTAIN_ADDRESS,
 } = require('./constants');
 
 // setup wallet
@@ -27,14 +28,16 @@ console.log(await fountain.getToken());
 // create Trustline
 const tx = await fountain.prepareStablecoin({
   stablecoinCode: STABLECOIN_CODE,
-  amountBrl: AMOUNT_BRL,
+  amountBRL: AMOUNT_BRL,
+  issuerAddress: FOUNTAIN_ADDRESS,
 });
 const txSigned = wallet.sign(tx);
-const result = await fountain.submitAndWait(txSigned.tx_blob);
+const trustlineResult = await fountain.submitAndWait(txSigned.tx_blob);
+console.log(trustlineResult);
 
 // create stablecoin
 const response = await fountain.createStablecoin({
-  amountBrl: AMOUNT_BRL,
+  amountBRL: AMOUNT_BRL,
   clientId: CLIENT_ID,
   clientName: CLIENT_NAME,
   stablecoinCode: STABLECOIN_CODE,
@@ -50,7 +53,8 @@ async function partialDeposit(wallet, destination, amount) {
   const client = new xrpl.Client(NETWORK_URL);
   await client.connect();
 
-  for (const amt of [amount / 2, amount / 2]) {
+  const total = Number(amount);
+  for (const amt of [total / 2, total / 2]) {
     const payment = {
       TransactionType: 'Payment',
       Account: wallet.address,
