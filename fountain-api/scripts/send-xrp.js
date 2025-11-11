@@ -6,20 +6,20 @@
 const xrpl = require('xrpl');
 
 async function main() {
-  const SOURCE_SEED = process.env.SOURCE_SEED || '';
-  const DESTINATION_ADDRESS = process.env.DESTINATION_ADDRESS || '';
-  const AMOUNT_XRP = process.env.AMOUNT_XRP || '';
-  const NETWORK_URL = process.env.NETWORK_URL || 'wss://s.altnet.rippletest.net:51233';
+  const SOURCE_SEED = '';
+  const DESTINATION_ADDRESS = '';
+  const AMOUNT_XRP = '';
+  const NETWORK_URL = '';
 
   if (!SOURCE_SEED || !DESTINATION_ADDRESS || !AMOUNT_XRP || !NETWORK_URL) {
-    console.error('Faltam envs: SOURCE_SEED, DESTINATION_ADDRESS, AMOUNT_XRP, NETWORK_URL');
+    console.error('Missing required env: SOURCE_SEED, DESTINATION_ADDRESS, AMOUNT_XRP, NETWORK_URL');
     process.exit(1);
   }
 
   const client = new xrpl.Client(NETWORK_URL);
   await client.connect();
 
-  const wallet = xrpl.Wallet.fromSecret(SOURCE_SEED);
+  const wallet = xrpl.Wallet.fromSecrete(SOURCE_SEED);
 
   const payment = {
     TransactionType: 'Payment',
