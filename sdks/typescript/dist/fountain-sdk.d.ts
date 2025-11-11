@@ -20,7 +20,7 @@ export interface CreateStablecoinRequest {
     clientName: string;
     currencyCode: string;
     amount: number;
-    depositType: 'RLUSD' | 'PIX';
+    depositType: 'XRP' | 'RLUSD' | 'PIX';
     webhookUrl: string;
 }
 export interface CreateStablecoinResponse {
@@ -112,7 +112,7 @@ export declare class FountainSDK {
         stablecoinId: string;
         companyWallet: string;
         amount: number;
-        depositType: 'RLUSD' | 'PIX';
+        depositType: 'XRP' | 'RLUSD' | 'PIX';
         webhookUrl: string;
     }): Promise<CreateStablecoinResponse>;
     /**
@@ -139,6 +139,29 @@ export declare class FountainSDK {
      * Check if authenticated
      */
     isAuthenticated(): boolean;
+    /**
+     * Create a trustline from client wallet to Fountain issuer
+     * This must be called before minting tokens to establish trust relationship
+     *
+     * @param clientSeed - The secret seed of the client wallet (starts with 's')
+     * @param currencyCode - The currency code for the stablecoin (e.g., 'APBRL')
+     * @param limit - The maximum amount to trust (default: '999999999999999')
+     * @param networkUrl - XRPL network URL (default: 'wss://s.altnet.rippletest.net:51233')
+     * @param issuerAddress - Fountain issuer address (from API response or known)
+     * @returns Transaction result with hash and status
+     */
+    createTrustline(params: {
+        clientSeed: string;
+        currencyCode: string;
+        issuerAddress: string;
+        limit?: string;
+        networkUrl?: string;
+    }): Promise<{
+        success: boolean;
+        txHash: string;
+        result: string;
+        walletAddress: string;
+    }>;
     /**
      * Get all operations for the authenticated company
      */
